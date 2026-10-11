@@ -474,8 +474,12 @@ const water = (() => {
   });
 
   fit();
-  t0 = performance.now();  if (still) draw(t0, false, BAND);                  // one calm static frame, no loop
-  else start();
+  t0 = performance.now();
+  /* Paint one frame synchronously, whatever happens next. A browser is free to throttle
+     requestAnimationFrame until the tab is focused, so making the loop the only thing that ever paints
+     left the whole field blank on load in a background tab or a docked panel: no error, just no water. */
+  draw(t0, false, BAND);
+  if (!still) start();
 
   return {
     /* Written into the field rather than played back, and throttled: one drop per ~15px of travel. */
