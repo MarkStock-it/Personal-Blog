@@ -5,210 +5,714 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Your Name</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
 <style>
-/* CONCEPT: "ripples". Every post is a drop of water. The home page is a quiet pond: your pointer
-   leaves rings, each post floats as a soft shape that drifts toward you, and opening a post
-   spreads a ripple of that post's own color across the screen. Colors are soft and watery on purpose. */
-:root{--mist:#E9E6F3;--paper:#F7F5FB;--ink:#2B2742;--mut:#6C6788;--hl:#F6E7A8;
-  --display:'Bricolage Grotesque',system-ui,sans-serif;--read:'Literata',Georgia,serif}
+/* CONCEPT: "ripples" — and the pond finally has water in it.
+   Every post is a drop of water suspended at its own depth. The page sits under one surface:
+   a single fixed canvas paints slow bands of light and shade that drift with a seeded noise
+   field, and every ripple the pointer leaves is WRITTEN INTO that field, so ripples linger,
+   interfere and calm down slowly instead of playing once and vanishing.
+   Depth is a number per post (0 = at the surface, 1 = far below) and every signal on the post —
+   drift, scale, blur, tint strength — is derived from it. The text layer is never blurred and
+   never translucent: legibility is the floor, not a variable.
+   Colours stay soft and watery on purpose; the contrast is carried by lightness, not chroma. */
+
+:root{
+  /* Palette: one hue family (a violet-leaning neutral) plus a single accent, used in small doses. */
+  --paper:#F7F5FB;      /* hue-biased paper, never pure white */
+  --field:#E9E6F3;      /* the page field (mist) */
+  --edge:#D8D3E8;       /* hairlines and quiet borders */
+  --ink:#2B2742;        /* 11.6:1 on --field */
+  --mut:#615C7D;        /* 5.12:1 on --field — was #6C6788 at 4.34:1, which failed AA body text */
+  --accent:#4F4CA8;     /* 5.83:1 on --field; focus rings and small marks only */
+  --hl:#F6E7A8;
+
+  /* Type ladder. Every size on the page is one rung of this; the serif reads, the grotesque speaks. */
+  --step--1:clamp(.6875rem,.66rem + .12vw,.75rem);   /* 11→12px  label / meta */
+  --step-0:clamp(1.0625rem,1rem + .28vw,1.1875rem);  /* 17→19px  body */
+  --step-1:clamp(1.25rem,1.13rem + .53vw,1.5rem);    /* 20→24px  subhead */
+  --step-2:clamp(1.5rem,1.28rem + .98vw,2rem);       /* 24→32px  title / pull quote */
+  --step-3:clamp(1.9rem,1.45rem + 2vw,3rem);         /* 30→48px  article head */
+  --step-4:clamp(2.4rem,1.5rem + 4vw,4.5rem);        /* 38→72px  display */
+  --step-5:clamp(3rem,1.2rem + 8vw,7.5rem);          /* 48→120px hero */
+
+  /* Spacing scale. Sections are deliberately not all the same size. */
+  --s1:.35rem;--s2:.7rem;--s3:1.15rem;--s4:1.9rem;--s5:3rem;--s6:4.8rem;--s7:7.5rem;
+
+  --display:'Bricolage Grotesque',ui-sans-serif,sans-serif;
+  --read:'Literata',ui-serif,Georgia,serif;
+  --ease-enter:cubic-bezier(.16,.84,.28,1);
+  --ease-exit:cubic-bezier(.7,0,.84,.2);
+  --ease-move:cubic-bezier(.4,0,.2,1);
+}
 *{box-sizing:border-box}
-body{margin:0;font:1.1rem/1.75 var(--read);color:var(--ink);background:var(--mist);transition:background .5s}
-body[data-view=read]{background:radial-gradient(70rem 42rem at 15% -8%,var(--wash,#C9D3F7),transparent 70%),var(--paper)}
+html{scroll-behavior:smooth}
+body{margin:0;font:400 var(--step-0)/1.7 var(--read);color:var(--ink);background:var(--field);
+  transition:background .5s var(--ease-move);font-variant-numeric:oldstyle-nums}
+/* On the reading page the post's colour becomes a soft atmosphere, mixed back toward the paper: the
+   identity survives, but the surface you read on stays calm and the contrast stays predictable. */
+body[data-view=read]{background:radial-gradient(70rem 42rem at 15% -8%,color-mix(in oklab,var(--wash,#C9D3F7) 52%,transparent),transparent 70%),var(--paper)}
 a{color:inherit}
-:focus-visible{outline:3px solid #5B58C9;outline-offset:3px}
-#rip{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
-.top,main{position:relative;z-index:1}
-.top{display:flex;justify-content:space-between;align-items:baseline;padding:1.25rem clamp(1rem,4vw,3rem);font:600 1.05rem var(--display)}
-.top a{text-decoration:none;margin-left:1.5rem;padding:.1rem .6rem;border-radius:99px;transition:background .25s}
-.top a:first-child{margin:0;font-size:1.2rem;padding:0}
-.top a:hover{background:#fff9}
-main{padding:0 clamp(1rem,4vw,3rem) 5rem;outline:0}
+::selection{background:var(--hl)}
+/* The route change moves focus to main for screen readers, but a ring around the whole page
+   reads as a stray horizontal rule under the nav — so main is focusable, not focus-styled.
+   Keyboard users get the skip link below instead. */
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:2px}
+main:focus,main:focus-visible{outline:none}
+.skip{position:fixed;left:var(--s3);top:-4rem;z-index:20;background:var(--ink);color:var(--paper);
+  padding:.6rem 1rem;border-radius:99px;font:600 var(--step--1) var(--display);text-decoration:none;
+  transition:top .18s var(--ease-enter)}
+.skip:focus{top:var(--s3)}
 
-/* HERO: letters swell toward the pointer (see swell()) */
-.hero{font:300 clamp(3rem,10.5vw,9rem)/.95 var(--display);letter-spacing:-.03em;margin:3rem 0 1.25rem}
-.hero .w{display:inline-block;white-space:nowrap;margin-right:.2em}
+/* WATER: one fixed layer behind everything. Never intercepts pointer events. */
+#water{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;transition:opacity .6s var(--ease-move)}
+body[data-view=read] #water{opacity:.5}
+/* GRAIN: a 3.5% tile gives the big pale fields something to resolve, so calm does not read as
+   unfinished. The feColorMatrix is what keeps it grain rather than confetti: feTurbulence emits
+   independent noise per colour channel, so without it the overlay is coloured speckle. */
+body::after{content:"";position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.035;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+.top,main,.colophon{position:relative;z-index:2}
+.top{display:flex;justify-content:space-between;align-items:baseline;padding:var(--s3) clamp(1rem,4vw,3rem);
+  font:600 var(--step-0)/1 var(--display)}
+.top a{text-decoration:none;margin-left:var(--s4);padding:.15rem .6rem;border-radius:99px;transition:background .25s var(--ease-move)}
+.top a:first-child{margin:0;font-size:var(--step-1);padding:0;letter-spacing:-.02em}
+.top a:hover{background:#ffffff9c}
+main{padding:0 clamp(1rem,4vw,3rem) var(--s5);outline:0}
+
+/* QUIET SCALE: one size, one tracking, one separator, tabular figures, for all metadata. */
+.label{font:600 var(--step--1)/1.25 var(--display);letter-spacing:.06em;text-transform:uppercase;
+  color:var(--mut);font-variant-numeric:tabular-nums}
+.backlink{display:inline-flex;align-items:baseline;gap:.35rem;font:600 var(--step--1)/1 var(--display);
+  letter-spacing:.02em;text-transform:none;color:var(--mut);text-decoration:none}
+.backlink:hover{color:var(--ink)}
+
+/* HERO: letters swell toward the pointer (see the pointer system). */
+.hero{font:250 var(--step-5)/.92 var(--display);letter-spacing:-.035em;margin:var(--s5) 0 var(--s3);
+  max-width:22ch;text-wrap:balance}
+.hero .w{display:inline-block;white-space:nowrap;margin-right:.18em}
 .hero .c{display:inline-block;font-variation-settings:"wght" 250,"wdth" 78;transition:font-variation-settings .2s}
-.lede{font:1.3rem/1.5 var(--display);max-width:30rem;color:var(--mut);margin:0 0 3rem}
+.lede{font:400 var(--step-1)/1.45 var(--read);max-width:46ch;color:var(--mut);margin:0 0 var(--s5)}
 
-/* TOPICS: choosing one dims the other posts instead of removing them */
-.topics{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:2rem;font:600 1rem var(--display)}
-.topics button{cursor:pointer;font:inherit;color:var(--ink);background:#ffffff80;border:0;padding:.4rem 1rem;border-radius:99px;transition:background .25s}
-.topics button[aria-pressed=true]{background:var(--ink);color:#fff}
+/* The masthead row: a ledger line, so the page states what it holds before you scroll.
+   The separator lives inside the following item, so it can never wrap alone onto a bare line. */
+.ledger{display:flex;align-items:baseline;flex-wrap:wrap;
+  border-top:1px solid var(--edge);padding-top:var(--s2);margin-bottom:var(--s4)}
+.ledger .label + .label::before{content:"·";margin:0 var(--s2);color:var(--edge)}
 
-/* THE POND: posts are drifting soft shapes. Grid keeps it working for any number of posts. */
-.pond{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:1rem 2rem;align-items:center}
-.blob{--dx:0px;--dy:0px;--sc:1;position:relative;display:flex;flex-direction:column;justify-content:center;gap:.4rem;text-decoration:none;
-  aspect-ratio:1;width:var(--w);justify-self:var(--j);margin-top:var(--mt);padding:15% 14%;color:var(--ink);
-  background:radial-gradient(circle at 28% 22%,#ffffffb0,transparent 55%),var(--tint);
-  transform:translate(var(--dx),var(--dy)) scale(var(--sc));transition:transform .7s cubic-bezier(.2,.7,.2,1),opacity .5s;
-  animation:morph var(--dur) ease-in-out infinite alternate;box-shadow:0 1.5rem 3rem -1.5rem var(--tint)}
-.blob:hover,.blob:focus-visible{--sc:1.07}
-.blob.dim{opacity:.25;--sc:.88}
-.blob small{font:500 .9rem var(--display);color:#2b2742b0}
-.blob .t{font:700 clamp(1.25rem,2.4vw,1.8rem)/1.1 var(--display);font-variation-settings:"wdth" 86}
-.blob .ex{font:.95rem/1.4 var(--read);max-height:0;opacity:0;overflow:hidden;transition:max-height .5s,opacity .4s}
-.blob:hover .ex,.blob:focus-visible .ex{max-height:6rem;opacity:1}
-@keyframes morph{from{border-radius:60% 40% 55% 45%/50% 60% 40% 50%}to{border-radius:42% 58% 40% 60%/60% 42% 58% 40%}}
-.empty{font:1.2rem var(--display);color:var(--mut)}
+.topics{display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 var(--s4);font:600 var(--step--1) var(--display)}
+.topics button{cursor:pointer;font:inherit;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);
+  background:#ffffff8c;border:1px solid transparent;padding:.45rem 1rem;border-radius:99px;transition:background .25s,border-color .25s}
+.topics button:hover{background:#fff}
+.topics button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
 
-/* READING */
-#ring{position:fixed;right:1.25rem;bottom:1.25rem;width:52px;height:52px;z-index:4;border:0;background:#ffffffcc;border-radius:50%;cursor:pointer;padding:0}
+/* THE POND: the horizon where water meets air, then the drifting shapes below it. */
+.pond-wrap{position:relative}
+.horizon{height:1px;margin:0 0 var(--s6);background:linear-gradient(90deg,transparent,var(--edge) 18%,var(--edge) 82%,transparent)}
+.pond{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:var(--s5) 2rem;align-items:center}
+
+/* One post = one drop. --depth is its distance below the surface; everything below derives from it.
+   The shape carries the material (blur, tint, softness); the text carries the reading. */
+.post{--depth:.35;--size:1;--hov:1;--dx:0px;--dy:0px;
+  position:relative;display:flex;flex-direction:column;justify-content:flex-end;gap:.45rem;text-decoration:none;
+  aspect-ratio:1;width:calc(var(--size) * 100%);justify-self:var(--j,center);margin-top:var(--mt,0);
+  padding:17% 15%;color:var(--ink);
+  transform:translate3d(var(--dx),var(--dy),0) scale(calc((1 - .16 * var(--depth)) * var(--hov)));
+  transition:transform .7s var(--ease-move),opacity .5s var(--ease-move)}
+.post-shape{position:absolute;inset:0;z-index:-1;
+  background:radial-gradient(circle at 30% 24%,#ffffffb0,transparent 58%),var(--tint);
+  border-radius:var(--r0,56% 44% 52% 48%/48% 56% 44% 52%);
+  filter:blur(calc(var(--depth) * 6px)) saturate(calc(1 - .3 * var(--depth)));
+  opacity:calc(1 - .42 * var(--depth));
+  animation:morph var(--dur,12s) ease-in-out infinite alternate;animation-delay:var(--phase,0s)}
+@keyframes morph{from{border-radius:var(--r0)}to{border-radius:var(--r1)}}
+.post:hover,.post:focus-visible{--hov:1.055}
+.post.dim{--hov:.92;opacity:.3}
+.post.dim .post-shape{animation-play-state:paused}
+/* One rung down from the article headline: a pond shape is a small surface, and a display size there
+   wrapped ordinary titles onto four lines, which reads cramped rather than bold. Clamped to three
+   lines because a shape cannot hold an arbitrarily long title; the full text stays in the DOM (so the
+   link's accessible name and the page's text are complete) and the post page shows all of it. */
+.post-title{font:700 var(--step-1)/1.16 var(--display);font-variation-settings:"wdth" 88;letter-spacing:-.012em;
+  text-wrap:balance;display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+/* Opaque colours, not alpha: ink at 70% over a tint only reaches about 4:1 for small text, which fails
+   AA. Mixing toward the tint keeps the softer look while staying above 4.5:1. */
+.post-ex{font:400 clamp(.95rem,.92rem + .1vw,1.05rem)/1.45 var(--read);color:color-mix(in oklab,var(--ink) 82%,var(--tint));
+  display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.post .label{color:color-mix(in oklab,var(--ink) 66%,var(--tint))}
+
+/* Designed empty state: zero posts has to look deliberate, not broken. */
+.empty{max-width:38ch;padding:var(--s6) 0;border-top:1px solid var(--edge)}
+.empty h2{font:250 var(--step-3)/1.05 var(--display);margin:0 0 var(--s2);letter-spacing:-.02em}
+.empty p{margin:0;color:var(--mut)}
+
+/* READING: text column at a readable measure, margin column for notes. */
+#ring{position:fixed;right:1.15rem;bottom:1.15rem;width:52px;height:52px;z-index:5;border:0;
+  background:#ffffffd0;border-radius:50%;cursor:pointer;padding:0}
 #ring circle{fill:none;stroke-width:4}
-article{max-width:68rem;margin:0 auto;padding-top:2rem}
-article h1{font:800 clamp(2.3rem,6.5vw,5rem)/1 var(--display);font-variation-settings:"wdth" 84;letter-spacing:-.02em;margin:1rem 0;max-width:17ch}
-.meta{font:500 1rem var(--display);color:var(--mut)}
-.blk{display:grid;grid-template-columns:minmax(0,38rem) 15rem;gap:3rem;margin:0 0 1.5rem}
-.blk p{margin:0}
-.blk aside{font:500 .95rem/1.45 var(--display);padding:1rem 1.1rem;background:var(--wash,#C9D3F7);border-radius:55% 45% 50% 50%/45% 55% 45% 55%;align-self:start;transform:rotate(-1.5deg)}
+article{max-width:74rem;margin:0 auto;padding-top:var(--s4)}
+article h1{font:800 var(--step-4)/1 var(--display);font-variation-settings:"wdth" 84;letter-spacing:-.025em;
+  margin:var(--s3) 0;max-width:17ch;text-wrap:balance;hanging-punctuation:first}
+.meta{font:600 var(--step--1)/1.3 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--mut);
+  font-variant-numeric:tabular-nums}
+/* The margin column takes the leftover width instead of leaving a dead strip at the right edge. */
+.blk{display:grid;grid-template-columns:minmax(0,62ch) minmax(11rem,1fr);gap:var(--s5) var(--s5);margin:0 0 var(--s4)}
+.blk aside{max-width:20rem}
+.blk p{margin:0;font-size:var(--step-0);line-height:1.72;text-wrap:pretty}
+/* Notes are attached to the paragraph they annotate: same top edge, a hairline, a quiet label. */
+.blk aside{position:relative;align-self:start;font:400 .95rem/1.5 var(--read);color:var(--ink);
+  background:color-mix(in oklab,var(--wash,#C9D3F7) 62%,var(--paper));
+  border-radius:1.4rem 1.4rem 1.4rem .4rem;padding:var(--s3) var(--s3) var(--s3) var(--s4)}
+.blk aside::before{content:"";position:absolute;left:0;top:1.1rem;width:calc(var(--s3) + .5rem);height:1px;
+  background:color-mix(in oklab,var(--ink) 25%,transparent)}
+.blk aside .label{display:block;margin-bottom:.35rem;color:var(--mut)}
 mark{background:var(--hl);color:inherit;border-radius:.3em;padding:0 .12em}
-blockquote{margin:2rem 0;font:700 1.8rem/1.2 var(--display);font-variation-settings:"wdth" 86;max-width:30rem}
-.hint{font:500 .95rem var(--display);color:var(--mut);margin:1.5rem 0}
-#tools{position:fixed;z-index:6;display:flex;background:var(--ink);border-radius:99px;overflow:hidden;transform:translate(-50%,-115%)}
-#tools button{all:unset;cursor:pointer;color:#fff;font:600 .9rem var(--display);padding:.5rem .9rem}
-#tools button:hover{background:#5B58C9}
-.pass{margin:4rem 0;padding:2rem 2.25rem;max-width:36rem;background:var(--wash,#C9D3F7);border-radius:48% 52% 45% 55%/30% 30% 40% 40%}
-.pass h3{margin:0 0 .5rem;font:700 1.4rem var(--display)}
-.pass form{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem}
-.pass input{flex:1 1 12rem;font:1rem var(--display);padding:.6rem 1rem;border:0;border-radius:99px;background:#fffc;color:var(--ink)}
-.pass button{font:700 1rem var(--display);padding:.6rem 1.1rem;border:0;border-radius:99px;background:var(--ink);color:#fff;cursor:pointer}
+/* Pull quote: a real moment — the post's own colour as a rule, a hanging open quote, and the
+   display face at a light weight (heavy display at this size reads as shouting, not emphasis). */
+blockquote{position:relative;margin:var(--s6) 0;max-width:30ch;
+  padding:var(--s4) 0 0 1.05em;text-indent:-1.05em;
+  border-top:2px solid color-mix(in oklab,var(--wash,#C9D3F7) 58%,var(--ink) 15%);
+  font:300 var(--step-3)/1.16 var(--display);font-variation-settings:"wdth" 88;letter-spacing:-.022em;
+  hanging-punctuation:first}
+blockquote::before{content:"\201C";color:color-mix(in oklab,var(--wash,#C9D3F7) 35%,var(--ink) 32%)}
+.hint{font:600 var(--step--1)/1.3 var(--display);letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin:var(--s4) 0}
+#tools{position:fixed;z-index:6;display:flex;background:var(--ink);border-radius:99px;overflow:hidden;
+  transform:translate(-50%,-118%)}
+#tools.below{transform:translate(-50%,14px)}
+#tools button{all:unset;cursor:pointer;color:var(--paper);font:600 var(--step--1) var(--display);
+  letter-spacing:.04em;padding:.55rem .9rem}
+#tools button:hover{background:var(--accent)}
 
-/* PAGE TRANSITION: a circle of the post's color expands from where you clicked */
+.pass{margin:var(--s6) 0;padding:var(--s5) var(--s5) var(--s4);max-width:38rem;
+  background:color-mix(in oklab,var(--wash,#C9D3F7) 50%,var(--paper));
+  border-radius:2rem 2rem 2rem .6rem}
+.pass h2{margin:0 0 var(--s2);font:600 var(--step-1)/1.15 var(--display);letter-spacing:-.01em}
+.pass form{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:var(--s3)}
+.pass input{flex:1 1 12rem;font:400 var(--step-0) var(--display);padding:.7rem 1.1rem;border:1px solid var(--edge);
+  border-radius:99px;background:#fffc;color:var(--ink)}
+.pass button{font:600 var(--step-0) var(--display);padding:.7rem 1.2rem;border:0;border-radius:99px;
+  background:var(--ink);color:var(--paper);cursor:pointer}
+.pass .meta{margin:var(--s3) 0 0;text-transform:none;letter-spacing:0;font-weight:400;
+  font-family:var(--read);font-size:.95rem;color:var(--ink)}
+
+/* Prev / next: the post page stops being a dead end. */
+.post-nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:var(--s3);
+  border-top:1px solid var(--edge);margin-top:var(--s6);padding-top:var(--s4)}
+.post-nav a{text-decoration:none;display:flex;flex-direction:column;gap:.4rem}
+.post-nav a:hover .pn-t{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.pn-t{font:600 var(--step-1)/1.25 var(--display);letter-spacing:-.01em;text-wrap:balance}
+
+/* COLOPHON: a real bottom, so the page is not just an endless field. */
+.colophon{position:relative;margin-top:var(--s6);padding:var(--s5) clamp(1rem,4vw,3rem) var(--s6);
+  border-top:1px solid var(--edge);font:400 .95rem/1.6 var(--read);color:var(--mut)}
+.col-in{max-width:74rem;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:var(--s4) var(--s5);align-items:start}
+.col-mark{font:600 var(--step-1)/1 var(--display);color:var(--ink);margin:0 0 var(--s2);letter-spacing:-.02em}
+.col-line{margin:0;max-width:36ch}
+.col-latest{margin:0;display:flex;flex-direction:column;gap:.45rem}
+.col-latest a{text-decoration:none}
+.col-latest a:hover{text-decoration:underline;text-underline-offset:3px}
+.col-latest .label{margin-bottom:.2rem}
+.col-meta{grid-column:1/-1;margin:var(--s3) 0 0;padding-top:var(--s3);border-top:1px solid var(--edge)}
+
+/* PAGE TRANSITION: a circle of the post's colour expands from where you clicked. */
 #veil{position:fixed;inset:0;z-index:10;pointer-events:none;opacity:0}
 [hidden]{display:none!important}
-@media(max-width:52rem){.blk{grid-template-columns:1fr;gap:.75rem}.blob{width:min(100%,22rem)!important;justify-self:center!important;margin-top:0!important}.top a{margin-left:.5rem}}
-@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+@media(max-width:60rem){
+  .blk{grid-template-columns:1fr;gap:var(--s3)}
+  .blk aside{margin-bottom:var(--s3)}
+  .col-in{grid-template-columns:1fr}
+}
+@media(max-width:52rem){
+  /* Per-post size variation survives on phones instead of being flattened by !important. */
+  .post{width:calc(var(--size) * min(100%,21rem));justify-self:center;margin-top:0;padding:16% 15%}
+  .pond{gap:var(--s3)}
+  .top a{margin-left:.4rem}
+  .hero{margin-top:var(--s4)}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{transition:none!important;animation:none!important}
+}
 </style>
 </head>
 <body data-view="home">
-<canvas id="rip" aria-hidden="true"></canvas>
+<canvas id="water" aria-hidden="true"></canvas>
 <div id="veil"></div>
+<a class="skip" href="#app">Skip to content</a>
 <div id="tools" hidden><button id="hl">Highlight</button><button id="cp">Copy quote</button></div>
 <nav class="top" aria-label="Main"><a href="#/">Your Name</a>
   <span><a href="#/about">About</a><!-- TODO: more pages (Resources, Contact) via the same view pattern --></span></nav>
 <main id="app" tabindex="-1"></main>
+<footer class="colophon" id="colophon"></footer>
 
 <script>
 /* ============ DATA ============
    TODO: move to Markdown files / JSON / CMS. Adding a post must need NO code change.
    body = blocks: { p: "html", note: "optional margin note" } or { quote: "pull quote" }.
-   tint is optional: if missing, one is picked automatically so every post gets its own color. */
+   tint is optional: if missing, one is assigned so each post gets its own colour AND stays
+   perceptually far from the others (see assignTints).
+   depth is optional: how far below the surface the post sits, 0 (at the surface) to 1 (far down).
+   It drives the drift, the scale, the blur and the tint strength, so one number sets the mood. */
 const TINTS = ['#C9D3F7','#F4C7D4','#C5E0D0','#F6D9B8','#DCCDF0','#F3E7B0'];
 const POSTS = [
   { slug:'first-post', title:'Placeholder title that says the thing plainly', date:'2026-10-01', topic:'Essays',
-    excerpt:'A two-line preview that tells the reader what they will walk away with.',
+    excerpt:'A two-line preview that tells the reader what they will walk away with.', depth:.22,
     body:[{p:'Opening paragraph. Select any sentence to highlight it or copy it as a quote.', note:'A margin note: say what you really think, add context, or cite a source.'},
           {p:'Second paragraph of the argument.'},{quote:'A pull quote that carries the post.'},
           {p:'Closing paragraph.', note:'Another aside. Notes are optional.'}]},
   { slug:'second-post', title:'A shorter note on something smaller', date:'2026-09-15', topic:'Notes',
-    excerpt:'Not every post needs to be long.', body:[{p:'Short post body.'}]},
+    excerpt:'Not every post needs to be long.', depth:.58, body:[{p:'Short post body.'}]},
   { slug:'third-post', title:'Another thought worth writing down', date:'2026-08-30', topic:'Essays',
-    excerpt:'Placeholder preview text.', body:[{p:'Body text.'}]}
+    excerpt:'Placeholder preview text.', depth:.4, body:[{p:'Body text.'}]}
 ];
 
 const $ = s => document.querySelector(s), app = $('#app');
 const hash = s => [...s].reduce((a,c) => (a*31 + c.charCodeAt(0)) >>> 0, 7);
-const tintOf = p => p.tint || TINTS[hash(p.slug) % TINTS.length];
 const fmt = d => new Date(d).toLocaleDateString('en',{month:'short',day:'numeric',year:'numeric'});
-const still = matchMedia('(prefers-reduced-motion:reduce)').matches, fine = matchMedia('(hover:hover)').matches;
-let topic = 'All', first = true, cx0 = innerWidth/2, cy0 = innerHeight/2;
+const still = matchMedia('(prefers-reduced-motion:reduce)').matches;
+const fine = matchMedia('(hover:hover) and (pointer:fine)').matches;
+const live = fine && !still;               // pointer-driven work only runs for a fine pointer, calmly
+let topic = 'All', first = true, cx0 = innerWidth/2, cy0 = innerHeight/2, lastPointer = -1e9;
 
-/* ============ RIPPLES: the pointer leaves soft rings on the page ============ */
-const cv = $('#rip'), g = cv.getContext('2d'); let rings = [], last = 0;
-const fit = () => { cv.width = innerWidth; cv.height = innerHeight; }; fit(); addEventListener('resize', fit);
-function ring(x, y, big){ if (!still) rings.push({x, y, r:4, a:big ? .35 : .22, max:big ? 220 : 110}); }
-(function loop(){
-  g.clearRect(0, 0, cv.width, cv.height);
-  rings = rings.filter(o => o.a > .005);
-  rings.forEach(o => { o.r += (o.max - o.r) * .03 + .4; o.a *= .965;
-    g.beginPath(); g.arc(o.x, o.y, o.r, 0, 6.283); g.strokeStyle = `rgba(91,88,201,${o.a})`; g.lineWidth = 1.5; g.stroke(); });
-  requestAnimationFrame(loop);
+/* ---- one colour per post, guaranteed perceptually apart ---- */
+const hexToRgb = h => { const n = parseInt(h.slice(1),16); return [n>>16 & 255, n>>8 & 255, n & 255]; };
+const hueOf = h => { const [r,g,b] = hexToRgb(h).map(v => v/255);
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), d = mx-mn;
+  if (!d) return 0;
+  let x = mx === r ? ((g-b)/d)%6 : mx === g ? (b-r)/d+2 : (r-g)/d+4;
+  return (x*60 + 360) % 360; };
+const hueGap = (a,b) => { const d = Math.abs(a-b) % 360; return d > 180 ? 360-d : d; };
+/* Farthest-first assignment: each post takes the tint furthest (in hue) from the tints already
+   taken, so two posts can never end up nearly the same colour the way hash % 6 allowed. */
+function assignTints(posts){
+  const used = [];
+  return posts.map(p => {
+    if (p.tint) { used.push(hueOf(p.tint)); return p.tint; }
+    let best = TINTS[0], bestScore = -1;
+    TINTS.forEach((hex,i) => {
+      const h = hueOf(hex);
+      const gap = used.length ? Math.min(...used.map(u => hueGap(h,u))) : 180;
+      const score = gap + (i/1000);       // a tiny stable tie-break, so ties do not all pick TINTS[0]
+      if (score > bestScore) { bestScore = score; best = hex; }
+    });
+    used.push(hueOf(best));
+    return best;
+  });
+}
+const ASSIGNED = assignTints(POSTS);
+const TINT_OF = new Map(POSTS.map((p,i) => [p.slug, ASSIGNED[i]]));
+const tintOf = p => p.tint || TINT_OF.get(p.slug) || TINTS[hash(p.slug) % TINTS.length];
+const depthOf = p => (typeof p.depth === 'number' ? Math.min(1, Math.max(0, p.depth)) : .18 + (hash(p.slug) % 5) * .16);
+/* Shape and rhythm live in data, seeded from the slug, so a new post gets its own silhouette. */
+const shapeOf = p => { const h = hash(p.slug), r = n => 40 + ((h >> (n*3)) % 20);
+  return { r0:`${r(0)}% ${100-r(0)}% ${r(1)}% ${100-r(1)}% / ${r(2)}% ${r(3)}% ${100-r(3)}% ${100-r(2)}%`,
+           r1:`${100-r(1)}% ${r(1)}% ${r(0)}% ${100-r(0)}% / ${100-r(3)}% ${r(2)}% ${r(3)}% ${100-r(2)}%`,
+           size:(80 + h % 21)/100, j:['start','center','end'][h % 3], mt:((h >> 3) % 3) * 1.4,
+           dur:(11 + h % 8), phase:-(h % 13) }; };
+
+/* ============ THE WATER SURFACE ============
+   The whole page sits under one surface, painted by a single fixed canvas.
+   1. Slow bands of light and shade drift with a seeded 2-octave value noise field, so the water
+      is alive before anyone touches it.
+   2. Pointer input writes impulses INTO a fixed pool. Sampling the pool sums them, so ripples
+      linger, interfere with each other and fade over ~1.7s instead of vanishing after one ring.
+   3. Each ripple is tinted with the colour of the nearest post, so the water remembers the posts.
+   Cost: 2 pre-rendered sprites, ~8 band draws and at most 24 ring draws per frame. The loop stops
+   completely when the water is calm, and never runs at all under prefers-reduced-motion. */
+const water = (() => {
+  const cv = $('#water'), g = cv.getContext('2d');
+  /* DECAY sets how long a ripple is visible, and visibility is the product of the decay envelope and
+     the ring's own alpha: at 1.6/s with the .8 alpha factor a drop stays above ~8% opacity for about
+     1.5s, which is what reads as a linger. A faster decay looks like a cursor trail instead. */
+  const BAND = 3, POOL = 24, DECAY = 1.6, RING_ALPHA = .8, BUDGET = 2;   // BUDGET = ms of JS per frame
+  const IDLE_HZ = 15;      // idle drift repaints 15x/s, not 60: alive, but not 60 full-viewport repaints a second
+  /* A fine pointer gets a living surface. A touch device draws one still frame and answers taps with a
+     ripple, then goes static again: nobody holds a phone open watching a gradient, and a permanently
+     repainting full-viewport canvas is a battery cost that buys nothing there. */
+  const ambient = fine && !still;
+  const buf = Array.from({length:POOL}, () => ({x:0,y:0,born:-1e9,amp:0,tint:TINTS[0]}));
+  let head = 0, W = 0, H = 0, dpr = 1, raf = 0, t0 = 0, last = 0, lastPaint = 0;
+  let energy = 0, lastInput = -1e9, mode = 'home', quality = 1;
+  const sprites = new Map();
+  const sprite = (w,h,paint) => { const c = document.createElement('canvas'); c.width = w; c.height = h;
+    paint(c.getContext('2d'), w, h); return c; };
+
+  /* A soft band of light: bright in the middle, faded at both ends. Sized to the viewport on resize
+     so the blit is roughly 1:1: upscaling a small sprite 4x on every frame was the single biggest
+     cost in this layer. */
+  const bandSprite = light => sprite(Math.min(2400, Math.round(W*1.6)) || 512, Math.max(120, Math.round(H*.22)), (c,w,h) => {
+    const rgb = light ? '255,255,255' : '43,39,66';
+    const v = c.createLinearGradient(0,0,0,h);
+    v.addColorStop(0,`rgba(${rgb},0)`); v.addColorStop(.5,`rgba(${rgb},.5)`); v.addColorStop(1,`rgba(${rgb},0)`);
+    c.fillStyle = v; c.fillRect(0,0,w,h);
+    const hz = c.createLinearGradient(0,0,w,0);
+    hz.addColorStop(0,'rgba(0,0,0,0)'); hz.addColorStop(.5,'rgba(0,0,0,1)'); hz.addColorStop(1,'rgba(0,0,0,0)');
+    c.globalCompositeOperation = 'destination-in'; c.fillStyle = hz; c.fillRect(0,0,w,h);
+  });
+  /* A ring: transparent centre, a soft crest, fading at the edge. One per tint, built on demand. */
+  const ringSprite = hex => {
+    if (!sprites.has(hex)) sprites.set(hex, sprite(128,128,(c,s) => {
+      const [r,gg,b] = hexToRgb(hex);
+      const grd = c.createRadialGradient(s/2,s/2,s*.2,s/2,s/2,s*.5);
+      grd.addColorStop(0,`rgba(${r},${gg},${b},0)`);
+      grd.addColorStop(.52,`rgba(${r},${gg},${b},.5)`);
+      grd.addColorStop(.8,`rgba(${r},${gg},${b},.26)`);
+      grd.addColorStop(1,`rgba(${r},${gg},${b},0)`);
+      c.fillStyle = grd; c.fillRect(0,0,s,s);
+    }));
+    return sprites.get(hex);
+  };
+  let sheen = bandSprite(true), shade = bandSprite(false);
+  const rebuildBands = () => { sheen = bandSprite(true); shade = bandSprite(false); };
+
+  /* Seeded value noise: identical on every load, so the field can be art-directed. */
+  const h2 = (x,y,s) => { let n = Math.imul(x|0,374761393) ^ Math.imul(y|0,668265263) ^ Math.imul(s|0,1274126177);
+    n = Math.imul(n ^ (n>>>13), 1274126177); return ((n ^ (n>>>16))>>>0)/4294967296; };
+  const smooth = t => t*t*(3-2*t);
+  const noise = (x,y,s) => { const xi = Math.floor(x), yi = Math.floor(y), xf = smooth(x-xi), yf = smooth(y-yi);
+    const a = h2(xi,yi,s), b = h2(xi+1,yi,s), c = h2(xi,yi+1,s), d = h2(xi+1,yi+1,s);
+    return (a+(b-a)*xf)*(1-yf) + (c+(d-c)*xf)*yf; };
+  const fbm = (x,y,s) => noise(x,y,s)*.65 + noise(x*3,y*3,s+101)*.35;
+
+  /* Sum of the live impulses. Summing (not max) is the whole point: ripples interfere. */
+  function displacementAt(px,py,at){
+    let d = 0;
+    for (let i=0;i<POOL;i++){
+      const r = buf[i];
+      const env = Math.exp(-DECAY * (at - r.born) / 1000) * r.amp;
+      if (env < .004) continue;
+      const reach = 60 + r.amp * 260, k = Math.hypot(px-r.x, py-r.y)/reach;
+      if (k < 1) d += env * Math.cos(k*Math.PI*3) * (1-k) * (1-k);
+    }
+    return d;
+  }
+  const liveRings = at => buf.some(r => Math.exp(-DECAY*(at-r.born)/1000) * r.amp >= .004);
+
+  const SURFACE_SCALE = .75;   // the surface is nothing but soft gradients, so it renders below device
+                               // resolution and the browser scales it back up: ~44% fewer pixels to clear
+                               // and blend every frame, with no visible difference at these opacities.
+  function fit(){
+    dpr = Math.min(devicePixelRatio || 1, 2) * SURFACE_SCALE;
+    W = innerWidth; H = innerHeight;
+    cv.width = Math.floor(W*dpr); cv.height = Math.floor(H*dpr);
+    cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    g.setTransform(dpr,0,0,dpr,0,0);        // draw in CSS pixels from here on
+    rebuildBands();                          // 1:1 blits, not a 4x upscale every frame
+  }
+
+  function draw(ms, grown, bands){
+    const T = (ms - t0) / 1000;
+    bands = Math.max(1, bands || BAND);
+    g.clearRect(0,0,W,H);
+    /* The bands are the base state, so their strength is constant. Tying it to `energy` was a mistake:
+       energy is 0 when nobody is interacting, which left the ambient surface at a third of its
+       strength and effectively invisible until you moved the mouse. Ripples rise above this; they do
+       not replace it. */
+    g.globalCompositeOperation = 'lighter';
+    for (let i=0;i<bands;i++){
+      const seed = 7 + i*13;
+      const base = H*(.18 + i*(.7/bands));
+      const swell = (fbm(T*.05, i*3.1, seed) - .5) * H * .16;
+      const warp = grown ? displacementAt(W*.5, base, ms) * 26 : 0;   // ripples bend the surface
+      const s = .95 + (noise(T*.04, i*5.7, seed+3) - .5) * .3;
+      const bw = W*1.45*s, bh = Math.max(90, H*.2)*s;
+      g.globalAlpha = .062;
+      g.drawImage(sheen, W/2 - bw/2, base + swell + warp - bh/2, bw, bh);
+    }
+    g.globalCompositeOperation = 'multiply';
+    for (let i=0;i<bands;i++){
+      const seed = 11 + i*17;
+      const base = H*(.26 + i*(.7/bands));
+      const swell = (fbm(T*.045, i*2.4, seed) - .5) * H * .14;
+      const s = .95 + (noise(T*.03, i*4.3, seed+5) - .5) * .25;
+      const bw = W*1.35*s, bh = Math.max(80, H*.17)*s;
+      g.globalAlpha = .05;
+      g.drawImage(shade, W/2 - bw/2, base + swell - bh/2, bw, bh);
+    }
+    if (grown){
+      g.globalCompositeOperation = 'source-over';
+      for (let i=0;i<POOL;i++){
+        const r = buf[i];
+        const env = Math.exp(-DECAY*(ms - r.born)/1000) * r.amp;
+        if (env < .004) continue;
+        const reach = 60 + r.amp*260, size = reach*2;
+        g.globalAlpha = Math.min(.55, env * RING_ALPHA);
+        g.drawImage(ringSprite(r.tint), r.x - size/2, r.y - size/2, size, size);
+      }
+    }
+    g.globalAlpha = 1;
+  }
+
+  function frame(ms){
+    const dt = Math.min(50, ms - last) || 16; last = ms;
+    const active = ms - lastInput < 1800;
+    energy = active ? Math.min(1, energy + dt/900) : Math.max(0, energy - dt/2600);
+    const idle = !active && !liveRings(ms);
+    if (!idle || ms - lastPaint >= 1000 / IDLE_HZ){
+      lastPaint = ms;
+      const t = performance.now();
+      draw(ms, true, mode === 'read' ? 2 : BAND * quality);
+      /* Adaptive quality instead of a kill switch: a slow frame lowers the detail and the detail comes
+         back when the frame is cheap again. A slow frame must never disable input - the first version
+         did exactly that, and one slow frame at load was enough to silence every later ripple. */
+      const cost = performance.now() - t;
+      if (cost > BUDGET) quality = Math.max(.45, quality * .85);
+      else if (cost < BUDGET * .5) quality = Math.min(1, quality * 1.02);
+    }
+    if (document.hidden || (!ambient && idle)){ raf = 0; return; }   // a touch device goes static again
+    raf = requestAnimationFrame(frame);
+  }
+  const start = () => { if (!raf && !document.hidden){ last = performance.now(); raf = requestAnimationFrame(frame); } };
+
+  addEventListener('resize', () => { fit(); draw(performance.now(), true, mode === 'read' ? 2 : BAND * quality); }, {passive:true});
+  document.addEventListener('visibilitychange', () => {
+    document.hidden ? (cancelAnimationFrame(raf), raf = 0) : start();
+  });
+
+  fit();
+  t0 = performance.now();  if (still) draw(t0, false, BAND);                  // one calm static frame, no loop
+  else start();
+
+  return {
+    /* Written into the field rather than played back, and throttled: one drop per ~15px of travel. */
+    drop(x,y,amp,tint,ms){
+      if (still) return;
+      const p = buf[head];
+      if (ms - p.born < 90 && Math.hypot(x - p.x, y - p.y) < 15) return;
+      head = (head + 1) % POOL;
+      Object.assign(buf[head], {x,y,born:ms,amp,tint});
+      lastInput = ms; energy = Math.max(energy, .55);
+      start();
+    },
+    setMode(m){ if (m !== mode){ mode = m; if (still) draw(performance.now(), false, BAND); } },
+    /* Nearest post tint, so a ripple takes on the colour of the drop it is near.
+       Reads the centres cached by measure(), never the DOM, so this costs no layout. */
+    tintAt(x,y){
+      let best = null, bestD = 1e9;
+      for (const el of tracked.posts){
+        const cx = +el.dataset.dx0, cy = +el.dataset.dy0;
+        if (!cx) continue;
+        const d = Math.hypot(x - cx, y - cy);
+        if (d < bestD){ bestD = d; best = el.dataset.tint; }
+      }
+      return best || TINTS[0];
+    }
+  };
 })();
-addEventListener('pointermove', e => { if (fine && e.timeStamp - last > 130){ last = e.timeStamp; ring(e.clientX, e.clientY); } });
-addEventListener('pointerdown', e => { cx0 = e.clientX; cy0 = e.clientY; ring(e.clientX, e.clientY, true); });
+
+/* ============ POINTER SYSTEM ============
+   One rAF-driven sampler feeds the water, the drifting posts and the swelling headline.
+   Rectangles are cached and only re-measured on resize or re-render, so nothing here touches
+   layout in the frame loop. Writes are skipped when a value barely moved. */
+const tracked = { letters: [], posts: [], letterXY: new WeakMap() };
+let px = .5, py = .5, rafPointer = 0, lastK = new WeakMap(), measuredAt = 0;
+let rafMeasure = 0;
+/* The only place rectangles are read. Called after a render, on resize and on scroll (once per
+   frame), never inside a pointer handler. */
+function measure(){
+  for (const el of tracked.posts){
+    const r = el.getBoundingClientRect();
+    el.dataset.dx0 = r.left + r.width/2; el.dataset.dy0 = r.top + r.height/2;
+  }
+  for (const c of tracked.letters){
+    const r = c.getBoundingClientRect();
+    tracked.letterXY.set(c, [r.left + r.width/2, r.top + r.height/2]);
+  }
+  measuredAt = performance.now();
+}
+const scheduleMeasure = () => { if (!rafMeasure) rafMeasure = requestAnimationFrame(() => { rafMeasure = 0; measure(); }); };
+function applyPointer(){
+  rafPointer = 0;
+  if (!live) return;
+  /* Swelling letters change their own width, so cached centres drift a little; re-read them
+     about twice a second rather than every frame. ~40 rect reads per second is free. */
+  if (performance.now() - measuredAt > 500 && tracked.letters.length) measure();
+  const nx = px - .5, ny = py - .5;
+  for (const el of tracked.posts){
+    const d = +el.dataset.depth;
+    const mag = 26 * (1 - d);                       // deeper things barely move
+    el.style.setProperty('--dx', (nx * mag).toFixed(1) + 'px');
+    el.style.setProperty('--dy', (ny * mag * .55).toFixed(1) + 'px');
+  }
+  if (!tracked.letters.length) return;
+  const X = px * innerWidth, Y = py * innerHeight;
+  for (const c of tracked.letters){
+    const xy = tracked.letterXY.get(c);
+    if (!xy) continue;
+    const k = Math.max(0, 1 - Math.hypot(X - xy[0], Y - xy[1]) / 260);
+    if (Math.abs((lastK.get(c) ?? -1) - k) < .015) continue;   // skip writes that would not show
+    lastK.set(c, k);
+    c.style.fontVariationSettings = `"wght" ${Math.round(250 + 500*k)},"wdth" ${Math.round(78 + 22*k)}`;
+  }
+}
+const onMove = e => {
+  px = e.clientX/innerWidth; py = e.clientY/innerHeight;
+  if (fine) water.drop(e.clientX, e.clientY, .55, water.tintAt(e.clientX, e.clientY), e.timeStamp);
+  if (!rafPointer && live) rafPointer = requestAnimationFrame(applyPointer);
+};
+const onDown = e => {
+  lastPointer = e.timeStamp; cx0 = e.clientX; cy0 = e.clientY;
+  water.drop(e.clientX, e.clientY, 1, water.tintAt(e.clientX, e.clientY), e.timeStamp);
+};
+if (fine) {
+  addEventListener('pointermove', onMove, {passive:true});
+  addEventListener('pointerdown', onDown, {passive:true});
+  addEventListener('resize', () => { measure(); water.setMode(document.body.dataset.view === 'read' ? 'read' : 'home'); }, {passive:true});
+  addEventListener('scroll', scheduleMeasure, {passive:true});
+}
 
 /* ============ ROUTER + RIPPLE TRANSITION ============ */
 function go(){
   const [, page, slug] = (location.hash || '#/').split('/');
   const post = POSTS.find(p => p.slug === slug);
-  const swap = () => { render(page, slug, post); app.focus({preventScroll:true}); scrollTo(0, 0); };
-  if (first || still){ first = false; swap(); return; }
-  const v = $('#veil'); v.style.background = (page === 'post' && post) ? tintOf(post) : 'var(--mist)'; v.style.opacity = 1;
-  v.animate([{clipPath:`circle(0 at ${cx0}px ${cy0}px)`},{clipPath:`circle(150vmax at ${cx0}px ${cy0}px)`}], {duration:520, easing:'cubic-bezier(.6,0,.3,1)'})
+  const opening = first; first = false;
+  /* Focus only moves on an in-app navigation. Moving it on the very first render would put the
+     reading position inside main before the reader has seen the page, and it made the skip link
+     unreachable by Tab - a skip link you cannot tab to is decoration. */
+  const swap = () => { render(page, slug, post); if (!opening) app.focus({preventScroll:true}); scrollTo(0, 0); };
+  if (opening || still){ swap(); return; }
+  /* Keyboard navigation has no pointer position, so expand from the link that was activated. */
+  if (performance.now() - lastPointer > 3000){
+    const r = document.activeElement?.getBoundingClientRect?.();
+    if (r && r.width){ cx0 = r.left + r.width/2; cy0 = r.top + r.height/2; }
+  }
+  const v = $('#veil');
+  v.style.background = (page === 'post' && post) ? tintOf(post) : 'var(--field)';
+  v.style.opacity = 1;
+  v.animate([{clipPath:`circle(0 at ${cx0}px ${cy0}px)`},{clipPath:`circle(150vmax at ${cx0}px ${cy0}px)`}],
+    {duration:520, easing:'cubic-bezier(.6,0,.3,1)'})
     .onfinish = () => { swap(); v.animate([{opacity:1},{opacity:0}], {duration:450}).onfinish = () => v.style.opacity = 0; };
 }
+/* Per-view share metadata. TODO: real URLs (not #hash) for SEO. */
+function meta(title, description){
+  document.title = title;
+  const set = (key, val, attr = 'property') => {
+    let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+    if (!el){ el = document.createElement('meta'); el.setAttribute(attr, key); document.head.append(el); }
+    el.setAttribute('content', val);
+  };
+  set('og:title', title); set('og:description', description); set('og:type', 'article');
+  set('og:site_name', 'Your Name'); set('twitter:card', 'summary', 'name');
+  set('description', description, 'name');
+}
 function render(page, slug, post){
-  document.body.dataset.view = (page === 'post' || page === 'about') ? 'read' : 'home';
+  const read = page === 'post' || page === 'about';
+  document.body.dataset.view = read ? 'read' : 'home';
   document.body.style.setProperty('--wash', post ? tintOf(post) : '#C9D3F7');
+  water.setMode(read ? 'read' : 'home');
   $('#tools').hidden = true; document.onscroll = null;
-  if (page === 'post' && post) return viewPost(post);
-  if (page === 'about') return viewAbout();
-  viewHome();
-  // TODO: per-view <title> + Open Graph meta; consider real URLs (not #hash) for SEO
+  tracked.posts = []; tracked.letters = [];              // listeners stay; the lists are rebuilt below
+  if (page === 'post' && post) viewPost(post);
+  else if (page === 'about') viewAbout();
+  else viewHome();
+  viewColophon();
+  measure();
 }
 
 /* ============ HOME ============ */
 function viewHome(){
-  document.title = 'Your Name';
   const words = 'Say the thing out loud.'; // TODO: replace with the owner's own statement
+  const sorted = POSTS.slice().sort((a,b) => b.date.localeCompare(a.date));
+  const latest = sorted[0];
   app.innerHTML = `<h1 class="hero" id="hero" aria-label="${words}">${words.split(' ').map(w =>
     `<span class="w" aria-hidden="true">${[...w].map(c => `<span class="c">${c}</span>`).join('')}</span>`).join(' ')}</h1>
     <p class="lede">One or two sentences about who you are and why you write.</p>
-    <div class="topics" id="topics" role="group" aria-label="Filter by topic"></div><div class="pond" id="pond"></div>`;
+    <div class="ledger"><span class="label">${POSTS.length} piece${POSTS.length === 1 ? '' : 's'}</span>${latest ? `<span class="label">Latest ${fmt(latest.date)}</span>` : ''}<span class="label">${[...new Set(POSTS.map(p => p.topic))].length} topic${[...new Set(POSTS.map(p => p.topic))].length === 1 ? '' : 's'}</span></div>
+    <div class="topics" id="topics" role="group" aria-label="Filter by topic"></div>
+    <div class="pond-wrap"><div class="horizon" aria-hidden="true"></div><div class="pond" id="pond"></div></div>`;
+  meta('Your Name', 'A personal blog: essays and notes, written by hand.');
   swell($('#hero'));
-  ['All', ...new Set(POSTS.map(p => p.topic))].forEach(t => {
-    const b = document.createElement('button'); b.textContent = t; b.setAttribute('aria-pressed', t === topic);
-    b.onclick = () => { topic = t; document.querySelectorAll('.topics button').forEach(x => x.setAttribute('aria-pressed', x === b)); dim(); };
-    $('#topics').append(b);
-  });
-  $('#pond').innerHTML = POSTS.slice().sort((a,b) => b.date.localeCompare(a.date)).map(p => { const h = hash(p.slug);
-    return `<a class="blob" href="#/post/${p.slug}" data-topic="${p.topic}" data-depth="${.5 + (h%7)/6}"
-      style="--tint:${tintOf(p)};--w:${78 + h%23}%;--j:${['start','center','end'][h%3]};--mt:${(h>>3)%4*1.5}rem;--dur:${9 + h%8}s">
-      <small>${fmt(p.date)} · ${p.topic}</small><span class="t">${p.title}</span><span class="ex">${p.excerpt}</span></a>`; }).join('')
-    || '<p class="empty">Nothing here yet.</p>';
-  dim(); drift();
+  if (POSTS.length > 1){
+    ['All', ...new Set(POSTS.map(p => p.topic))].forEach(t => {
+      const b = document.createElement('button'); b.textContent = t; b.setAttribute('aria-pressed', t === topic);
+      b.onclick = () => { topic = t; document.querySelectorAll('.topics button').forEach(x => x.setAttribute('aria-pressed', x === b)); dim(); };
+      $('#topics').append(b);
+    });
+  } else {
+    $('#topics').hidden = true;   // a filter with one option is not a filter
+  }
+  $('#pond').innerHTML = sorted.map(p => { const h = hash(p.slug), s = shapeOf(p), tint = tintOf(p);
+    return `<a class="post" href="#/post/${p.slug}" data-topic="${p.topic}" data-depth="${depthOf(p)}" data-tint="${tint}"
+      style="--tint:${tint};--size:${s.size};--j:${s.j};--mt:${s.mt}rem;--dur:${s.dur}s;--phase:${s.phase}s;--r0:${s.r0};--r1:${s.r1}">
+      <span class="post-shape" aria-hidden="true"></span>
+      <span class="label">${fmt(p.date)} · ${p.topic}</span>
+      <span class="post-title">${p.title}</span>
+      <span class="post-ex">${p.excerpt}</span></a>`; }).join('')
+    || `<div class="empty"><h2>Nothing here yet.</h2><p>The first piece is being written. It will appear here,
+      as a drop in the water, with a colour of its own.</p></div>`;
+  tracked.posts = [...document.querySelectorAll('.post')];
+  dim();
   // TODO: pagination / "load more" once there are many posts; optional search (searchPosts)
 }
-function dim(){ document.querySelectorAll('.blob').forEach(b => { const off = topic !== 'All' && b.dataset.topic !== topic; b.classList.toggle('dim', off); b.inert = off; }); }
-
+function dim(){
+  document.querySelectorAll('.post').forEach(b => {
+    const off = topic !== 'All' && b.dataset.topic !== topic;
+    b.classList.toggle('dim', off); b.inert = off;
+  });
+  measure();
+}
 /* Reactive headline: letters get bolder and wider near the pointer. Off for touch / reduced motion. */
 function swell(el){
-  if (!fine || still) return;
-  const cs = [...el.querySelectorAll('.c')];
-  document.onpointermove = e => { if (!el.isConnected) return;
-    cs.forEach(c => { const r = c.getBoundingClientRect(), k = Math.max(0, 1 - Math.hypot(e.clientX-r.left-r.width/2, e.clientY-r.top-r.height/2) / 240);
-      c.style.fontVariationSettings = `"wght" ${250+500*k},"wdth" ${78+22*k}`; }); };
+  if (!live) return;
+  tracked.letters = [...el.querySelectorAll('.c')];
 }
-/* Posts drift gently toward the pointer, each at its own depth */
-function drift(){
-  if (!fine || still) return;
-  addEventListener('pointermove', e => document.querySelectorAll('.blob').forEach(b => { const d = +b.dataset.depth * 26;
-    b.style.setProperty('--dx', ((e.clientX/innerWidth - .5) * d) + 'px'); b.style.setProperty('--dy', ((e.clientY/innerHeight - .5) * d) + 'px'); }));
-}
-
 /* ============ POST ============ */
 function viewPost(p){
-  document.title = p.title + ' — Your Name';
-  const mins = Math.max(1, Math.round(p.body.map(b => b.p || b.quote || '').join(' ').split(/\s+/).length / 220));
-  app.innerHTML = `<article><p class="meta"><a href="#/">← All writing</a></p><h1>${p.title}</h1>
-    <p class="meta">${fmt(p.date)} · ${p.topic} · ${mins} min read</p><p class="hint">Select any text to highlight it or copy it as a quote.</p>
+  const sum = p.body.map(b => b.p || b.quote || '').join(' ');
+  const mins = Math.max(1, Math.round(sum.replace(/<[^>]*>/g,'').split(/\s+/).length / 220));
+  const words = sum.replace(/<[^>]*>/g,'').split(/\s+/).filter(Boolean).length;
+  const byDate = POSTS.slice().sort((a,b) => b.date.localeCompare(a.date));
+  const i = byDate.findIndex(x => x.slug === p.slug);
+  const newer = byDate[i-1], older = byDate[i+1];
+  app.innerHTML = `<article><p><a class="backlink" href="#/">← All writing</a></p><h1>${p.title}</h1>
+    <p class="meta">${fmt(p.date)} · ${p.topic} · ${mins} min read · ${words} words</p>
+    <p class="hint">Select any text to highlight it or copy it as a quote.</p>
     <div id="prose">${p.body.map(b => b.quote ? `<blockquote>${b.quote}</blockquote>` :
-      `<div class="blk"><p>${b.p}</p>${b.note ? `<aside>${b.note}</aside>` : '<span></span>'}</div>`).join('')}</div>
-    <div class="pass"><h3>Pass it on</h3><button id="link">Copy link</button>
+      `<div class="blk"><p>${b.p}</p>${b.note ? `<aside><span class="label">Note</span>${b.note}</aside>` : '<span></span>'}</div>`).join('')}</div>
+    <div class="pass"><h2>Pass it on</h2><button id="link">Copy link</button>
       <form id="sub"><input type="email" placeholder="Email me the next one" aria-label="Email address" required><button>Subscribe</button></form>
-      <p class="meta" id="msg" hidden></p></div></article>
-    <button id="ring" aria-label="Back to top"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="21" stroke="#2b274220"/><circle id="arc" cx="26" cy="26" r="21" stroke="#2B2742" stroke-dasharray="132" stroke-dashoffset="132" transform="rotate(-90 26 26)"/></svg></button>`;
+      <p class="meta" id="msg" hidden></p></div>
+    ${(() => { /* Only emit links that exist, so a single one sits in the first column. */
+      const links = [newer && `<a href="#/post/${newer.slug}"><span class="label">Newer</span><span class="pn-t">${newer.title}</span></a>`,
+        older && `<a href="#/post/${older.slug}"><span class="label">Older</span><span class="pn-t">${older.title}</span></a>`].filter(Boolean);
+      return links.length ? `<nav class="post-nav" aria-label="More writing">${links.join('')}</nav>` : ''; })()}</article>
+    <button id="ring" aria-label="Back to top" title="Back to top"><svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="21" stroke="#2b274220"/><circle id="arc" cx="26" cy="26" r="21" stroke="#2B2742" stroke-dasharray="132" stroke-dashoffset="132" transform="rotate(-90 26 26)"/></svg></button>`;
+  meta(p.title + ' — Your Name', p.excerpt || sum.slice(0, 150));
   // TODO: body is injected as HTML: sanitize if it ever comes from a CMS or user input
   $('#link').onclick = () => { navigator.clipboard.writeText(location.href); $('#link').textContent = 'Copied'; };
-  $('#sub').onsubmit = subscribe; $('#ring').onclick = () => scrollTo({top:0, behavior:'smooth'});
-  document.onscroll = () => { const h = document.documentElement; $('#arc')?.setAttribute('stroke-dashoffset', 132 * (1 - scrollY / Math.max(1, h.scrollHeight - innerHeight))); };
+  $('#sub').onsubmit = subscribe; $('#ring').onclick = () => scrollTo({top:0, behavior: still ? 'auto' : 'smooth'});
+  document.onscroll = () => { const h = document.documentElement;
+    $('#arc')?.setAttribute('stroke-dashoffset', 132 * (1 - scrollY / Math.max(1, h.scrollHeight - innerHeight))); };
   document.onscroll(); highlighter(p);
-  // TODO: previous / next post links; comments or reply-by-email (decide moderation first)
+  // TODO: comments or reply-by-email (decide moderation first)
 }
 function viewAbout(){
-  document.title = 'About — Your Name';
-  app.innerHTML = `<article><h1>About</h1><div class="blk"><p>A short bio in your own voice: why you write, what readers can expect, how often you post.</p><aside>Margin notes work here too.</aside></div></article>`;
+  app.innerHTML = `<article><h1>About</h1>
+    <p class="ledger"><span class="label">${POSTS.length} piece${POSTS.length === 1 ? '' : 's'} published</span>
+      <span class="label">${[...new Set(POSTS.map(p => p.topic))].join(' · ')}</span></p>
+    <div class="blk"><p>A short bio in your own voice: why you write, what readers can expect, how often you post.</p>
+      <aside><span class="label">Note</span>Margin notes work here too.</aside></div>
+    <div class="blk"><p>What this is not: a feed, a brand, or a place that tracks you. Just writing, at whatever
+      pace it arrives.</p><span></span></div></article>`;
+  meta('About — Your Name', 'Who writes here and why.');
   // TODO: portrait image, contact link or form, social links
+}
+/* The colophon gives every page a real bottom: what this is, what is newest, how it is made. */
+function viewColophon(){
+  const sorted = POSTS.slice().sort((a,b) => b.date.localeCompare(a.date)).slice(0,3);
+  $('#colophon').innerHTML = `<div class="col-in">
+    <div><p class="col-mark">Your Name</p>
+      <p class="col-line">A personal blog. Essays and notes on whatever I am thinking about — written by hand,
+      no tracking and no ads.</p></div>
+    <nav class="col-latest" aria-label="Latest writing"><span class="label">Latest</span>
+      ${sorted.length ? sorted.map(p => `<a href="#/post/${p.slug}">${p.title}</a>`).join('')
+        : '<span>Nothing published yet.</span>'}
+      <a href="#/" style="margin-top:.5rem">All writing →</a></nav>
+    <p class="col-meta label">© ${new Date().getFullYear()} · Built as one file, no framework</p></div>`;
 }
 
 /* ============ HIGHLIGHTER: readers mark up text ============ */
@@ -218,7 +722,10 @@ function highlighter(p){
     const s = getSelection(); text = s.toString().trim();
     if (!text || !$('#prose')?.contains(s.anchorNode)){ tools.hidden = true; return; }
     const r = s.getRangeAt(0), b = r.getBoundingClientRect();
-    tools.hidden = false; tools.style.left = (b.left + b.width/2) + 'px'; tools.style.top = b.top + 'px';
+    tools.hidden = false; tools.style.left = (b.left + b.width/2) + 'px';
+    /* Near the top of the viewport the popover would sit off-screen, so it flips below instead. */
+    tools.classList.toggle('below', b.top < 64);
+    tools.style.top = (tools.classList.contains('below') ? b.bottom : b.top) + 'px';
     $('#hl').onclick = () => { try { r.surroundContents(document.createElement('mark')); } catch(e){ /* TODO: handle selections across several elements */ }
       s.removeAllRanges(); tools.hidden = true; /* TODO: persist highlights per post (localStorage) and restore on load */ };
     $('#cp').onclick = () => { navigator.clipboard.writeText(`“${text}” — Your Name, ${p.title} ${location.href}`);
@@ -229,7 +736,9 @@ function highlighter(p){
 /* ============ FUNCTIONS FOR THE PROGRAMMER AI ============ */
 function subscribe(e){ e.preventDefault();
   // TODO: send to a newsletter service (Buttondown / Mailchimp / own backend); validate; handle errors; spam protection
-  const m = $('#msg'); m.hidden = false; m.textContent = 'Thanks, you are subscribed.'; }
+  const m = $('#msg'); m.hidden = false;
+  /* This is a template, so it says so: an unverified "you are subscribed" would be a claim the page cannot keep. */
+  m.textContent = 'Not connected yet — this form still needs a newsletter service. (See the TODO in subscribe().)'; }
 function searchPosts(q){ /* TODO: filter POSTS by title/excerpt/body and re-render the pond */ }
 function loadPosts(){ /* TODO: replace POSTS with fetch('/posts.json') or a CMS API, with loading + error states */ }
 function generateRSS(){ /* TODO: build rss.xml from POSTS at build time or server-side */ }
