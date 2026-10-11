@@ -1,6 +1,7 @@
 # Handoff
 
-**Last updated:** 2026-10-11. All five phases (orient, diagnose, upgrade the MCP, apply, verify) are complete.
+**Last updated:** 2026-10-11. All five phases (orient, diagnose, upgrade the MCP, apply, verify) are complete,
+and the full verification matrix was re-run green on the final commits listed below.
 
 ## Goal and definition of done
 Make the blog (concept: "ripples") clearly richer, deeper and more premium while staying soft, calm and
@@ -47,7 +48,8 @@ The three `.work/*.mjs` harnesses need `playwright` — they resolve it from the
 
 ## Done (branches and commits)
 - `Personal-Blog` @ **design/pond-depth**: `10f830a` baseline (tracked the existing file + added handoff.md),
-  `b78e674` the redesign (water, depth, type system, and eight measured fixes).
+  `b78e674` the redesign (water, depth, type system, and eight measured fixes), `6e84426` paint one water
+  frame synchronously on load (see Gotchas — the loop alone left a throttled tab blank).
 - `Personal-MCP---UI-UX` @ **feat/design-playbook**: `91a9691` agent notes + gitignore, `db8b3ef` the
   playbook module, `32bf034` tools/resources/prompts + smoke coverage, `e997666` palette_check pairing fix,
   `27a5a2a` two playbook entries corrected after applying them to real code.
@@ -97,6 +99,11 @@ The three `.work/*.mjs` harnesses need `playwright` — they resolve it from the
   and a target project. The keyless suite and the six new offline tools are covered.
 
 ## Gotchas and known issues
+- **A browser may throttle `requestAnimationFrame` until its tab is focused.** The surface used to be painted
+  only from inside that loop, so an unfocused tab loaded to a blank field with no error at all; it now draws
+  one frame synchronously before starting the loop. In this environment the Preview panel never runs rAF
+  (`rafFired: 0`, `hasFocus: false`) and refuses screenshots as "not being composited", so **judge the motion
+  in a real, focused browser tab** — the panel shows only the correct static first frame.
 - Chrome's `--headless --screenshot` CLI **mis-lays-out at narrow widths** (it cropped at 390px and faked a
   mobile overflow bug). Always use `.work/qa.mjs`.
 - The Preview tab cached the old file once when `preview_navigate` did not revalidate; bust it with `?v=N`.
