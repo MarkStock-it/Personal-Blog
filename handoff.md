@@ -14,17 +14,24 @@ with one memorable idea; MCP upgraded and running; everything committed on branc
 Both repos are on feature branches and committed. The blog has real water (see Decisions), the MCP has a
 17-entry-per-topic design playbook plus six new tools, ten resources and two prompts, and the whole blog
 was verified in a real browser at 390/1440, with keyboard, reduced motion and axe. All verification
-harnesses are listed below and all currently pass.
+harnesses are listed below and all currently pass. `design/pond-depth` is pushed to GitHub (PR link under
+Remotes); the MCP branch is still local only.
 
 ## Repo map
 - Workspace root `/Users/markelysalinas/Desktop/GIT/Personal-Blog` is not itself a repo. `.work/` there is
   **local scratch, committed nowhere** (see "How to verify" — nothing else depends on it).
 - `Personal-Blog/` (branch **`design/pond-depth`**): `blog-template-v3.html` is the **entire blog** — one
-  file, no build step, no framework, two Google Fonts. `handoff.md` is this file. `Start` is an empty file
-  the owner deleted in the working tree; left untouched, not committed.
+  file, no build step, no framework, two Google Fonts. `handoff.md` is this file. `Start` was a 1-byte
+  placeholder committed when the repo was created; removed in `b6da9c6` at the owner's request.
 - `Personal-MCP---UI-UX/` (branch **`feat/design-playbook`**): `src/index.ts` (20 tools, 10 resources,
   2 prompts), `src/playbook/*` (the offline knowledge; `types.ts` is the contract), `src/test/gates.ts`
   (the automated gates), `smoke/smoke.mjs` (55 checks). `dist/` is committed because hosts run it directly.
+- **Remotes:** `Personal-Blog` → `MarkStock-it/Personal-Blog`, whose `main` held only the 1-byte `Start`
+  commit. `design/pond-depth` is **pushed**; the PR is created by the owner at
+  <https://github.com/MarkStock-it/Personal-Blog/pull/new/design/pond-depth> because the browser profile in
+  this workspace is **not signed in to GitHub**, so an agent cannot press the button.
+  `Personal-MCP---UI-UX` → `MarkStock-it/Personal-MCP---UI-UX`; `feat/design-playbook` is **not pushed**
+  and has no PR.
 
 ## How to verify (all commands are exact; VERIFIED this session)
 ```bash
@@ -49,7 +56,8 @@ The three `.work/*.mjs` harnesses need `playwright` — they resolve it from the
 ## Done (branches and commits)
 - `Personal-Blog` @ **design/pond-depth**: `10f830a` baseline (tracked the existing file + added handoff.md),
   `b78e674` the redesign (water, depth, type system, and eight measured fixes), `6e84426` paint one water
-  frame synchronously on load (see Gotchas — the loop alone left a throttled tab blank).
+  frame synchronously on load (see Gotchas — the loop alone left a throttled tab blank), `92985dd` handoff
+  update for that fix, `b6da9c6` remove the 1-byte `Start` placeholder.
 - `Personal-MCP---UI-UX` @ **feat/design-playbook**: `91a9691` agent notes + gitignore, `db8b3ef` the
   playbook module, `32bf034` tools/resources/prompts + smoke coverage, `e997666` palette_check pairing fix,
   `27a5a2a` two playbook entries corrected after applying them to real code.
@@ -120,7 +128,7 @@ The three `.work/*.mjs` harnesses need `playwright` — they resolve it from the
 - Do not add a heavy dependency or a build step to the blog; it must stay one file.
 - Do not make the palette harsh, neon or high-contrast.
 - Do not replace the "ripples"/water concept with a different metaphor.
-- Do not commit the owner's pending `Start` deletion, `node_modules` re-installs, `.DS_Store`, or `.work/`.
+- Do not commit `node_modules` re-installs, `.DS_Store`, or `.work/`.
 - Do not put secrets or API keys in code or in this file.
 
 ## Sources used
