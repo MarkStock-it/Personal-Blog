@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your Name</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
+<style>
+/* CONCEPT: "ripples". Every post is a drop of water. The home page is a quiet pond: your pointer
+   leaves rings, each post floats as a soft shape that drifts toward you, and opening a post
+   spreads a ripple of that post's own color across the screen. Colors are soft and watery on purpose. */
+:root{--mist:#E9E6F3;--paper:#F7F5FB;--ink:#2B2742;--mut:#6C6788;--hl:#F6E7A8;
+  --display:'Bricolage Grotesque',system-ui,sans-serif;--read:'Literata',Georgia,serif}
+*{box-sizing:border-box}
+body{margin:0;font:1.1rem/1.75 var(--read);color:var(--ink);background:var(--mist);transition:background .5s}
+body[data-view=read]{background:radial-gradient(70rem 42rem at 15% -8%,var(--wash,#C9D3F7),transparent 70%),var(--paper)}
+a{color:inherit}
+:focus-visible{outline:3px solid #5B58C9;outline-offset:3px}
+#rip{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.top,main{position:relative;z-index:1}
+.top{display:flex;justify-content:space-between;align-items:baseline;padding:1.25rem clamp(1rem,4vw,3rem);font:600 1.05rem var(--display)}
+.top a{text-decoration:none;margin-left:1.5rem;padding:.1rem .6rem;border-radius:99px;transition:background .25s}
+.top a:first-child{margin:0;font-size:1.2rem;padding:0}
+.top a:hover{background:#fff9}
+main{padding:0 clamp(1rem,4vw,3rem) 5rem;outline:0}
+
+/* HERO: letters swell toward the pointer (see swell()) */
+.hero{font:300 clamp(3rem,10.5vw,9rem)/.95 var(--display);letter-spacing:-.03em;margin:3rem 0 1.25rem}
+.hero .w{display:inline-block;white-space:nowrap;margin-right:.2em}
+.hero .c{display:inline-block;font-variation-settings:"wght" 250,"wdth" 78;transition:font-variation-settings .2s}
+.lede{font:1.3rem/1.5 var(--display);max-width:30rem;color:var(--mut);margin:0 0 3rem}
+
+/* TOPICS: choosing one dims the other posts instead of removing them */
+.topics{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:2rem;font:600 1rem var(--display)}
+.topics button{cursor:pointer;font:inherit;color:var(--ink);background:#ffffff80;border:0;padding:.4rem 1rem;border-radius:99px;transition:background .25s}
+.topics button[aria-pressed=true]{background:var(--ink);color:#fff}
+
+/* THE POND: posts are drifting soft shapes. Grid keeps it working for any number of posts. */
+.pond{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:1rem 2rem;align-items:center}
+.blob{--dx:0px;--dy:0px;--sc:1;position:relative;display:flex;flex-direction:column;justify-content:center;gap:.4rem;text-decoration:none;
+  aspect-ratio:1;width:var(--w);justify-self:var(--j);margin-top:var(--mt);padding:15% 14%;color:var(--ink);
+  background:radial-gradient(circle at 28% 22%,#ffffffb0,transparent 55%),var(--tint);
+  transform:translate(var(--dx),var(--dy)) scale(var(--sc));transition:transform .7s cubic-bezier(.2,.7,.2,1),opacity .5s;
+  animation:morph var(--dur) ease-in-out infinite alternate;box-shadow:0 1.5rem 3rem -1.5rem var(--tint)}
+.blob:hover,.blob:focus-visible{--sc:1.07}
+.blob.dim{opacity:.25;--sc:.88}
+.blob small{font:500 .9rem var(--display);color:#2b2742b0}
+.blob .t{font:700 clamp(1.25rem,2.4vw,1.8rem)/1.1 var(--display);font-variation-settings:"wdth" 86}
+.blob .ex{font:.95rem/1.4 var(--read);max-height:0;opacity:0;overflow:hidden;transition:max-height .5s,opacity .4s}
+.blob:hover .ex,.blob:focus-visible .ex{max-height:6rem;opacity:1}
+@keyframes morph{from{border-radius:60% 40% 55% 45%/50% 60% 40% 50%}to{border-radius:42% 58% 40% 60%/60% 42% 58% 40%}}
+.empty{font:1.2rem var(--display);color:var(--mut)}
+
+/* READING */
+#ring{position:fixed;right:1.25rem;bottom:1.25rem;width:52px;height:52px;z-index:4;border:0;background:#ffffffcc;border-radius:50%;cursor:pointer;padding:0}
+#ring circle{fill:none;stroke-width:4}
+article{max-width:68rem;margin:0 auto;padding-top:2rem}
+article h1{font:800 clamp(2.3rem,6.5vw,5rem)/1 var(--display);font-variation-settings:"wdth" 84;letter-spacing:-.02em;margin:1rem 0;max-width:17ch}
+.meta{font:500 1rem var(--display);color:var(--mut)}
+.blk{display:grid;grid-template-columns:minmax(0,38rem) 15rem;gap:3rem;margin:0 0 1.5rem}
+.blk p{margin:0}
+.blk aside{font:500 .95rem/1.45 var(--display);padding:1rem 1.1rem;background:var(--wash,#C9D3F7);border-radius:55% 45% 50% 50%/45% 55% 45% 55%;align-self:start;transform:rotate(-1.5deg)}
+mark{background:var(--hl);color:inherit;border-radius:.3em;padding:0 .12em}
+blockquote{margin:2rem 0;font:700 1.8rem/1.2 var(--display);font-variation-settings:"wdth" 86;max-width:30rem}
+.hint{font:500 .95rem var(--display);color:var(--mut);margin:1.5rem 0}
+#tools{position:fixed;z-index:6;display:flex;background:var(--ink);border-radius:99px;overflow:hidden;transform:translate(-50%,-115%)}
+#tools button{all:unset;cursor:pointer;color:#fff;font:600 .9rem var(--display);padding:.5rem .9rem}
+#tools button:hover{background:#5B58C9}
+.pass{margin:4rem 0;padding:2rem 2.25rem;max-width:36rem;background:var(--wash,#C9D3F7);border-radius:48% 52% 45% 55%/30% 30% 40% 40%}
+.pass h3{margin:0 0 .5rem;font:700 1.4rem var(--display)}
+.pass form{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem}
+.pass input{flex:1 1 12rem;font:1rem var(--display);padding:.6rem 1rem;border:0;border-radius:99px;background:#fffc;color:var(--ink)}
+.pass button{font:700 1rem var(--display);padding:.6rem 1.1rem;border:0;border-radius:99px;background:var(--ink);color:#fff;cursor:pointer}
+
+/* PAGE TRANSITION: a circle of the post's color expands from where you clicked */
+#veil{position:fixed;inset:0;z-index:10;pointer-events:none;opacity:0}
+[hidden]{display:none!important}
+@media(max-width:52rem){.blk{grid-template-columns:1fr;gap:.75rem}.blob{width:min(100%,22rem)!important;justify-self:center!important;margin-top:0!important}.top a{margin-left:.5rem}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body data-view="home">
+<canvas id="rip" aria-hidden="true"></canvas>
+<div id="veil"></div>
+<div id="tools" hidden><button id="hl">Highlight</button><button id="cp">Copy quote</button></div>
+<nav class="top" aria-label="Main"><a href="#/">Your Name</a>
+  <span><a href="#/about">About</a><!-- TODO: more pages (Resources, Contact) via the same view pattern --></span></nav>
+<main id="app" tabindex="-1"></main>
+
+<script>
+/* ============ DATA ============
+   TODO: move to Markdown files / JSON / CMS. Adding a post must need NO code change.
+   body = blocks: { p: "html", note: "optional margin note" } or { quote: "pull quote" }.
+   tint is optional: if missing, one is picked automatically so every post gets its own color. */
+const TINTS = ['#C9D3F7','#F4C7D4','#C5E0D0','#F6D9B8','#DCCDF0','#F3E7B0'];
+const POSTS = [
+  { slug:'first-post', title:'Placeholder title that says the thing plainly', date:'2026-10-01', topic:'Essays',
+    excerpt:'A two-line preview that tells the reader what they will walk away with.',
+    body:[{p:'Opening paragraph. Select any sentence to highlight it or copy it as a quote.', note:'A margin note: say what you really think, add context, or cite a source.'},
+          {p:'Second paragraph of the argument.'},{quote:'A pull quote that carries the post.'},
+          {p:'Closing paragraph.', note:'Another aside. Notes are optional.'}]},
+  { slug:'second-post', title:'A shorter note on something smaller', date:'2026-09-15', topic:'Notes',
+    excerpt:'Not every post needs to be long.', body:[{p:'Short post body.'}]},
+  { slug:'third-post', title:'Another thought worth writing down', date:'2026-08-30', topic:'Essays',
+    excerpt:'Placeholder preview text.', body:[{p:'Body text.'}]}
+];
+
+const $ = s => document.querySelector(s), app = $('#app');
+const hash = s => [...s].reduce((a,c) => (a*31 + c.charCodeAt(0)) >>> 0, 7);
+const tintOf = p => p.tint || TINTS[hash(p.slug) % TINTS.length];
+const fmt = d => new Date(d).toLocaleDateString('en',{month:'short',day:'numeric',year:'numeric'});
+const still = matchMedia('(prefers-reduced-motion:reduce)').matches, fine = matchMedia('(hover:hover)').matches;
+let topic = 'All', first = true, cx0 = innerWidth/2, cy0 = innerHeight/2;
+
+/* ============ RIPPLES: the pointer leaves soft rings on the page ============ */
+const cv = $('#rip'), g = cv.getContext('2d'); let rings = [], last = 0;
+const fit = () => { cv.width = innerWidth; cv.height = innerHeight; }; fit(); addEventListener('resize', fit);
+function ring(x, y, big){ if (!still) rings.push({x, y, r:4, a:big ? .35 : .22, max:big ? 220 : 110}); }
+(function loop(){
+  g.clearRect(0, 0, cv.width, cv.height);
+  rings = rings.filter(o => o.a > .005);
+  rings.forEach(o => { o.r += (o.max - o.r) * .03 + .4; o.a *= .965;
+    g.beginPath(); g.arc(o.x, o.y, o.r, 0, 6.283); g.strokeStyle = `rgba(91,88,201,${o.a})`; g.lineWidth = 1.5; g.stroke(); });
+  requestAnimationFrame(loop);
+})();
+addEventListener('pointermove', e => { if (fine && e.timeStamp - last > 130){ last = e.timeStamp; ring(e.clientX, e.clientY); } });
+addEventListener('pointerdown', e => { cx0 = e.clientX; cy0 = e.clientY; ring(e.clientX, e.clientY, true); });
+
+/* ============ ROUTER + RIPPLE TRANSITION ============ */
+function go(){
+  const [, page, slug] = (location.hash || '#/').split('/');
+  const post = POSTS.find(p => p.slug === slug);
+  const swap = () => { render(page, slug, post); app.focus({preventScroll:true}); scrollTo(0, 0); };
+  if (first || still){ first = false; swap(); return; }
+  const v = $('#veil'); v.style.background = (page === 'post' && post) ? tintOf(post) : 'var(--mist)'; v.style.opacity = 1;
+  v.animate([{clipPath:`circle(0 at ${cx0}px ${cy0}px)`},{clipPath:`circle(150vmax at ${cx0}px ${cy0}px)`}], {duration:520, easing:'cubic-bezier(.6,0,.3,1)'})
+    .onfinish = () => { swap(); v.animate([{opacity:1},{opacity:0}], {duration:450}).onfinish = () => v.style.opacity = 0; };
+}
+function render(page, slug, post){
+  document.body.dataset.view = (page === 'post' || page === 'about') ? 'read' : 'home';
+  document.body.style.setProperty('--wash', post ? tintOf(post) : '#C9D3F7');
+  $('#tools').hidden = true; document.onscroll = null;
+  if (page === 'post' && post) return viewPost(post);
+  if (page === 'about') return viewAbout();
+  viewHome();
+  // TODO: per-view <title> + Open Graph meta; consider real URLs (not #hash) for SEO
+}
+
+/* ============ HOME ============ */
+function viewHome(){
+  document.title = 'Your Name';
+  const words = 'Say the thing out loud.'; // TODO: replace with the owner's own statement
+  app.innerHTML = `<h1 class="hero" id="hero" aria-label="${words}">${words.split(' ').map(w =>
+    `<span class="w" aria-hidden="true">${[...w].map(c => `<span class="c">${c}</span>`).join('')}</span>`).join(' ')}</h1>
+    <p class="lede">One or two sentences about who you are and why you write.</p>
+    <div class="topics" id="topics" role="group" aria-label="Filter by topic"></div><div class="pond" id="pond"></div>`;
+  swell($('#hero'));
+  ['All', ...new Set(POSTS.map(p => p.topic))].forEach(t => {
+    const b = document.createElement('button'); b.textContent = t; b.setAttribute('aria-pressed', t === topic);
+    b.onclick = () => { topic = t; document.querySelectorAll('.topics button').forEach(x => x.setAttribute('aria-pressed', x === b)); dim(); };
+    $('#topics').append(b);
+  });
+  $('#pond').innerHTML = POSTS.slice().sort((a,b) => b.date.localeCompare(a.date)).map(p => { const h = hash(p.slug);
+    return `<a class="blob" href="#/post/${p.slug}" data-topic="${p.topic}" data-depth="${.5 + (h%7)/6}"
+      style="--tint:${tintOf(p)};--w:${78 + h%23}%;--j:${['start','center','end'][h%3]};--mt:${(h>>3)%4*1.5}rem;--dur:${9 + h%8}s">
+      <small>${fmt(p.date)} · ${p.topic}</small><span class="t">${p.title}</span><span class="ex">${p.excerpt}</span></a>`; }).join('')
+    || '<p class="empty">Nothing here yet.</p>';
+  dim(); drift();
+  // TODO: pagination / "load more" once there are many posts; optional search (searchPosts)
+}
+function dim(){ document.querySelectorAll('.blob').forEach(b => { const off = topic !== 'All' && b.dataset.topic !== topic; b.classList.toggle('dim', off); b.inert = off; }); }
+
+/* Reactive headline: letters get bolder and wider near the pointer. Off for touch / reduced motion. */
+function swell(el){
+  if (!fine || still) return;
+  const cs = [...el.querySelectorAll('.c')];
+  document.onpointermove = e => { if (!el.isConnected) return;
+    cs.forEach(c => { const r = c.getBoundingClientRect(), k = Math.max(0, 1 - Math.hypot(e.clientX-r.left-r.width/2, e.clientY-r.top-r.height/2) / 240);
+      c.style.fontVariationSettings = `"wght" ${250+500*k},"wdth" ${78+22*k}`; }); };
+}
+/* Posts drift gently toward the pointer, each at its own depth */
+function drift(){
+  if (!fine || still) return;
+  addEventListener('pointermove', e => document.querySelectorAll('.blob').forEach(b => { const d = +b.dataset.depth * 26;
+    b.style.setProperty('--dx', ((e.clientX/innerWidth - .5) * d) + 'px'); b.style.setProperty('--dy', ((e.clientY/innerHeight - .5) * d) + 'px'); }));
+}
+
+/* ============ POST ============ */
+function viewPost(p){
+  document.title = p.title + ' — Your Name';
+  const mins = Math.max(1, Math.round(p.body.map(b => b.p || b.quote || '').join(' ').split(/\s+/).length / 220));
+  app.innerHTML = `<article><p class="meta"><a href="#/">← All writing</a></p><h1>${p.title}</h1>
+    <p class="meta">${fmt(p.date)} · ${p.topic} · ${mins} min read</p><p class="hint">Select any text to highlight it or copy it as a quote.</p>
+    <div id="prose">${p.body.map(b => b.quote ? `<blockquote>${b.quote}</blockquote>` :
+      `<div class="blk"><p>${b.p}</p>${b.note ? `<aside>${b.note}</aside>` : '<span></span>'}</div>`).join('')}</div>
+    <div class="pass"><h3>Pass it on</h3><button id="link">Copy link</button>
+      <form id="sub"><input type="email" placeholder="Email me the next one" aria-label="Email address" required><button>Subscribe</button></form>
+      <p class="meta" id="msg" hidden></p></div></article>
+    <button id="ring" aria-label="Back to top"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="21" stroke="#2b274220"/><circle id="arc" cx="26" cy="26" r="21" stroke="#2B2742" stroke-dasharray="132" stroke-dashoffset="132" transform="rotate(-90 26 26)"/></svg></button>`;
+  // TODO: body is injected as HTML: sanitize if it ever comes from a CMS or user input
+  $('#link').onclick = () => { navigator.clipboard.writeText(location.href); $('#link').textContent = 'Copied'; };
+  $('#sub').onsubmit = subscribe; $('#ring').onclick = () => scrollTo({top:0, behavior:'smooth'});
+  document.onscroll = () => { const h = document.documentElement; $('#arc')?.setAttribute('stroke-dashoffset', 132 * (1 - scrollY / Math.max(1, h.scrollHeight - innerHeight))); };
+  document.onscroll(); highlighter(p);
+  // TODO: previous / next post links; comments or reply-by-email (decide moderation first)
+}
+function viewAbout(){
+  document.title = 'About — Your Name';
+  app.innerHTML = `<article><h1>About</h1><div class="blk"><p>A short bio in your own voice: why you write, what readers can expect, how often you post.</p><aside>Margin notes work here too.</aside></div></article>`;
+  // TODO: portrait image, contact link or form, social links
+}
+
+/* ============ HIGHLIGHTER: readers mark up text ============ */
+function highlighter(p){
+  const tools = $('#tools'); let text = '';
+  document.onpointerup = () => setTimeout(() => {
+    const s = getSelection(); text = s.toString().trim();
+    if (!text || !$('#prose')?.contains(s.anchorNode)){ tools.hidden = true; return; }
+    const r = s.getRangeAt(0), b = r.getBoundingClientRect();
+    tools.hidden = false; tools.style.left = (b.left + b.width/2) + 'px'; tools.style.top = b.top + 'px';
+    $('#hl').onclick = () => { try { r.surroundContents(document.createElement('mark')); } catch(e){ /* TODO: handle selections across several elements */ }
+      s.removeAllRanges(); tools.hidden = true; /* TODO: persist highlights per post (localStorage) and restore on load */ };
+    $('#cp').onclick = () => { navigator.clipboard.writeText(`“${text}” — Your Name, ${p.title} ${location.href}`);
+      /* TODO: "Save as image": draw the quote on a <canvas> card in the post's tint */ tools.hidden = true; };
+  }, 0);
+}
+
+/* ============ FUNCTIONS FOR THE PROGRAMMER AI ============ */
+function subscribe(e){ e.preventDefault();
+  // TODO: send to a newsletter service (Buttondown / Mailchimp / own backend); validate; handle errors; spam protection
+  const m = $('#msg'); m.hidden = false; m.textContent = 'Thanks, you are subscribed.'; }
+function searchPosts(q){ /* TODO: filter POSTS by title/excerpt/body and re-render the pond */ }
+function loadPosts(){ /* TODO: replace POSTS with fetch('/posts.json') or a CMS API, with loading + error states */ }
+function generateRSS(){ /* TODO: build rss.xml from POSTS at build time or server-side */ }
+// TODO (admin): the owner must be able to write -> publish without editing code (Markdown folder or lightweight CMS)
+
+addEventListener('hashchange', go); go();
+</script>
+</body>
+</html>
