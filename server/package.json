@@ -1,0 +1,21 @@
+{
+  "name": "elyplog",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal blog served from MariaDB: Express + mysql2, no build step",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "start:plain": "node src/server.js",
+    "migrate": "node --env-file=.env src/migrate.js",
+    "hash": "node src/hash.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "mysql2": "^3.24.4"
+  }
+}
