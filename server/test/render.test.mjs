@@ -34,7 +34,7 @@ const posts = [{
 /** Render a page and pull the data blob the client reads, exactly as the browser does. */
 const payload = async ({ view = 'about', over = {}, ...rest } = {}) => {
   const html = await renderPage({
-    view, settings: { ...settings, ...over }, posts,
+    view, settings: { ...settings, ...over }, posts, nonce: 'test-nonce',
     url: 'https://elyplog.dcism.org/about', ...rest,
   });
   const match = html.match(/window\.__ELY__ = (\{[\s\S]*?\});<\/script>/);
@@ -54,7 +54,8 @@ test('the About page receives blocks, not the stored Markdown string', async () 
 test('rendering does not mutate the settings the dashboard reads', async () => {
   const subject = { ...settings };
   await renderPage({
-    view: 'about', settings: subject, posts, url: 'https://elyplog.dcism.org/about',
+    view: 'about', settings: subject, posts, nonce: 'test-nonce',
+    url: 'https://elyplog.dcism.org/about',
   });
   assert.equal(typeof subject.about, 'string');
   assert.equal(subject.about, settings.about);
@@ -100,6 +101,90 @@ test('an empty override falls back to the title and the excerpt', async () => {
   const { html } = await payload({ view: 'post', post, posts: [post] });
   assert.ok(html.includes('<title>A shorter note on something smaller — Mark Ely Salinas</title>'));
   assert.ok(html.includes('content="Not every post needs to be long."'));
+});
+
+test('the unsubscribe view carries its removal state and stays out of search engines', async () => {
+  const unsub = { state: 'confirm', email: 'mark@example.com', token: 'tok.en' };
+  const { html, data } = await payload({ view: 'unsubscribed', unsub });
+  assert.deepEqual(data.unsub, unsub);
+  assert.ok(html.includes('<meta name="robots" content="noindex">'));
+  assert.ok(html.includes('<title>Unsubscribe — Mark Ely Salinas</title>'));
+});
+
+test('no other view is noindex and none of them carry an unsub blob', async () => {
+  for (const view of ['home', 'about', 'notfound']) {
+    const { html, data } = await payload({ view });
+    assert.ok(!html.includes('noindex'), `${view} must stay indexable`);
+    assert.equal(data.unsub, null);
+  }
+});
+
+test('the secret and the address are never in the page handed to the visitor', async () => {
+  const { html } = await payload({ view: 'unsubscribed', unsub: { state: 'removed' } });
+  assert.ok(!html.includes('mark@example.com'), 'the done page shows no address back');
+});
+
+test('the head carries a canonical link, the feed, an inline icon and the light colour scheme', async () => {
+  const { html } = await payload({ view: 'home' });
+  assert.ok(html.includes('<link rel="canonical" href="https://elyplog.dcism.org/about">'));
+  assert.ok(html.includes('<link rel="alternate" type="application/rss+xml"'));
+  assert.ok(html.includes('href="/rss.xml"'));
+  assert.ok(html.includes('<link rel="icon" href="data:image/svg+xml,'), 'no icon file is fetched');
+  assert.ok(html.includes('<meta name="color-scheme" content="light">'));
+});
+
+test('each view is canonical at its own address, with the site name escaped in the feed title', async () => {
+  const post = { ...posts[0], body: [{ p: 'Body.' }] };
+  const { html } = await payload({
+    view: 'post', post, posts: [post], url: 'https://elyplog.dcism.org/post/second-post',
+    over: { name: 'Mark & "Ely"' },
+  });
+  assert.ok(html.includes('<link rel="canonical" href="https://elyplog.dcism.org/post/second-post">'));
+  assert.ok(html.includes('title="Mark &amp; &quot;Ely&quot; — RSS"'));
+});
+
+test('no view is left with an unsubstituted placeholder', async () => {
+  for (const view of ['home', 'about', 'notfound', 'unsubscribed']) {
+    const { html } = await payload({ view, unsub: { state: 'removed' } });
+    assert.equal(/\{\{[A-Z_]+\}\}/.test(html), false, `${view} still holds a placeholder`);
+  }
+});
+
+test('a post advertises a share card in its own colour, at an absolute address', async () => {
+  const post = { ...posts[0], body: [{ p: 'Body.' }], tint: '#C9D3F7' };
+  const { html } = await payload({
+    view: 'post', post, posts: [post], url: 'https://elyplog.dcism.org/post/second-post',
+  });
+  assert.ok(html.includes('<meta property="og:image" content="https://elyplog.dcism.org/og/c9d3f7.png">'));
+  assert.ok(html.includes('<meta property="og:image:width" content="1200">'));
+  assert.ok(html.includes('<meta property="og:image:height" content="630">'));
+  assert.ok(html.includes('<meta property="og:image:alt" content="A shorter note on something smaller — share card">'));
+  assert.ok(html.includes('<meta name="twitter:card" content="summary_large_image">'));
+});
+
+test('a post with no colour of its own gets the neutral card, and a page can carry none', async () => {
+  const post = { ...posts[0], body: [{ p: 'Body.' }], tint: '#123456' };
+  const { html } = await payload({
+    view: 'post', post, posts: [post], url: 'https://elyplog.dcism.org/post/second-post',
+  });
+  assert.ok(html.includes('content="https://elyplog.dcism.org/og/default.png"'));
+
+  const notFound = await payload({ view: 'notfound' });
+  assert.equal(notFound.html.includes('og:image'), false, 'the 404 advertises no card');
+});
+
+test('every inline script carries the nonce its CSP header will name', async () => {
+  const { html } = await payload({ view: 'home' });
+  const tags = html.match(/<script[^>]*>/g) || [];
+  assert.equal(tags.length, 2, 'the page has its data script and its behaviour script');
+  for (const tag of tags) assert.ok(tag.includes('nonce="test-nonce"'), `no nonce on ${tag}`);
+});
+
+test('a page rendered without a nonce fails loudly instead of breaking silently', async () => {
+  await assert.rejects(
+    renderPage({ view: 'home', settings, posts, url: 'https://elyplog.dcism.org/' }),
+    /needs the response nonce/,
+  );
 });
 
 test('a post title cannot close the data script tag early', async () => {

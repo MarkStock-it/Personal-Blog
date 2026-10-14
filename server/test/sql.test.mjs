@@ -24,7 +24,8 @@ test('a semicolon inside a string literal does not split the statement', () => {
 test('the real schema splits into whole statements', () => {
   return readFile(new URL('../schema.sql', import.meta.url), 'utf8').then(sql => {
     const out = statements(sql);
-    assert.equal(out.length, 2, `expected 2 statements, got ${out.length}`);
+    // posts, settings and subscribers: one statement per table.
+    assert.equal(out.length, 3, `expected 3 statements, got ${out.length}`);
     for (const statement of out) {
       // A split inside a string literal leaves an odd number of quotes behind.
       const quotes = (statement.match(/'/g) || []).length;

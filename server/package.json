@@ -11,6 +11,7 @@
     "start": "node --env-file=.env src/server.js",
     "start:plain": "node src/server.js",
     "migrate": "node --env-file=.env src/migrate.js",
+    "og": "node tools/make-og.mjs",
     "hash": "node src/hash.js",
     "test": "node --test"
   },

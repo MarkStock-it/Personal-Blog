@@ -10,7 +10,8 @@
 import { readFile } from 'node:fs/promises';
 
 import {
-  pool, SETTING_DEFAULTS, countPosts, ensurePostColumns, getPostRawBySlug, savePost, setSetting,
+  pool, SETTING_DEFAULTS, countPosts, ensurePostColumns, ensureSubscriberColumns,
+  getPostRawBySlug, savePost, setSetting,
 } from './db.js';
 import { SEED_POSTS } from './seed.js';
 import { statements } from './sql.js';
@@ -29,8 +30,13 @@ async function main() {
   /* Newer columns, for a posts table that already exists: CREATE TABLE IF NOT EXISTS never adds one. */
   const added = await ensurePostColumns();
   console.log(added.length
-    ? `columns: added ${added.join(', ')}`
+    ? `columns: added ${added.join(', ')} to posts`
     : 'columns: posts table is up to date');
+
+  const subscribers = await ensureSubscriberColumns();
+  console.log(subscribers.length
+    ? `columns: added ${subscribers.join(', ')} to subscribers`
+    : 'columns: subscribers table is up to date');
 
   let settingsAdded = 0;
   for (const [key, value] of Object.entries(SETTING_DEFAULTS)) {

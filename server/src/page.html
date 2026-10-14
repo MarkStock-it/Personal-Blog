@@ -3,14 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The design is light only, so say so: without this a phone in dark mode repaints the email
+     field and the buttons itself, and the signup form stops matching the page around it. -->
+<meta name="color-scheme" content="light">
 <title>{{TITLE}}</title>
+<link rel="canonical" href="{{CANONICAL}}">
+<link rel="alternate" type="application/rss+xml" title="{{SITE_NAME}} — RSS" href="/rss.xml">
+<!-- A ripple mark, drawn inline: no icon file, no request, and no /favicon.ico 404 in the log. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232B2742'/%3E%3Cg fill='none' stroke='%23F7F5FB' stroke-width='2.2'%3E%3Ccircle cx='16' cy='16' r='3.4'/%3E%3Ccircle cx='16' cy='16' r='8' opacity='.5'/%3E%3Ccircle cx='16' cy='16' r='12.6' opacity='.22'/%3E%3C/g%3E%3C/svg%3E">
 <meta name="description" content="{{DESCRIPTION}}">
 <meta property="og:title" content="{{TITLE}}">
 <meta property="og:description" content="{{DESCRIPTION}}">
 <meta property="og:type" content="{{OG_TYPE}}">
 <meta property="og:site_name" content="{{SITE_NAME}}">
 <meta property="og:url" content="{{CANONICAL}}">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
+{{OG_IMAGE_TAGS}}
+{{ROBOTS}}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
@@ -26,6 +35,9 @@
    Colours stay soft and watery on purpose; the contrast is carried by lightness, not chroma. */
 
 :root{
+  /* Stated in CSS as well as the meta tag, so the email field and the buttons keep the page's
+     own light colours on a phone in dark mode. */
+  color-scheme:light;
   /* Palette: one hue family (a violet-leaning neutral) plus a single accent, used in small doses. */
   --paper:#F7F5FB;      /* hue-biased paper, never pure white */
   --field:#E9E6F3;      /* the page field (mist) */
@@ -36,7 +48,9 @@
   --hl:#F6E7A8;
 
   /* Type ladder. Every size on the page is one rung of this; the serif reads, the grotesque speaks. */
-  --step--1:clamp(.6875rem,.66rem + .12vw,.75rem);   /* 11→12px  label / meta */
+  /* A flat 12px: the old fluid rung bottomed out at 11px on a phone, which is too small for
+     upper-case metadata that carries the only date a reader sees. */
+  --step--1:.75rem;                                  /* 12px  label / meta */
   --step-0:clamp(1.0625rem,1rem + .28vw,1.1875rem);  /* 17→19px  body */
   --step-1:clamp(1.25rem,1.13rem + .53vw,1.5rem);    /* 20→24px  subhead */
   --step-2:clamp(1.5rem,1.28rem + .98vw,2rem);       /* 24→32px  title / pull quote */
@@ -203,6 +217,15 @@ blockquote::before{content:"\201C";color:color-mix(in oklab,var(--wash,#C9D3F7) 
   background:var(--ink);color:var(--paper);cursor:pointer}
 .pass .meta{margin:var(--s3) 0 0;text-transform:none;letter-spacing:0;font-weight:400;
   font-family:var(--read);font-size:.95rem;color:var(--ink)}
+/* What happens to the address, said plainly where the form is. */
+.pass .sub-note{margin-top:var(--s3);font-size:.85rem;line-height:1.5;color:var(--mut)}
+
+/* The one button on a signed-link page: joining the list, or leaving it. Styled like the signup
+   button on a post, so the two ends of the same promise look like each other. */
+.link-form{display:flex;gap:.5rem;flex-wrap:wrap;margin:var(--s4) 0 var(--s3)}
+.link-form button{font:600 var(--step-0) var(--display);padding:.7rem 1.2rem;border:0;border-radius:99px;
+  background:var(--ink);color:var(--paper);cursor:pointer}
+.link-form button:hover{background:var(--mut)}
 
 /* Prev / next: the post page stops being a dead end. */
 .post-nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:var(--s3);
@@ -257,9 +280,9 @@ blockquote::before{content:"\201C";color:color-mix(in oklab,var(--wash,#C9D3F7) 
 <footer class="colophon" id="colophon"></footer>
 
 <!-- This page's data, read from MariaDB and rendered by the server (see server/src/server.js). -->
-<script>window.__ELY__ = {{DATA}};</script>
+<script nonce="{{NONCE}}">window.__ELY__ = {{DATA}};</script>
 
-<script>
+<script nonce="{{NONCE}}">
 /* ============ DATA ============
    The posts come from the database, injected above as window.__ELY__. There is nothing to edit
    here to publish: write a post at /admin and it appears. Adding a post needs NO code change.
@@ -272,10 +295,13 @@ const ELY = window.__ELY__;
 const TINTS = ELY.tints;
 const SETTINGS = ELY.settings;
 const POSTS = ELY.posts;
-const VIEW = ELY.view;          // 'home' | 'post' | 'about' | 'notfound'
+const VIEW = ELY.view;          // 'home' | 'post' | 'about' | 'notfound' | 'unsubscribed'
 const CURRENT = ELY.post;       // the full post for a post view, otherwise null
+const UNSUB = ELY.unsub;        // the email-removal state, for the unsubscribe view only
+const CONFIRM = ELY.confirm;    // the signup-confirmation state, for the confirmed view only
 
 const $ = s => document.querySelector(s), app = $('#app');
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const hash = s => [...s].reduce((a,c) => (a*31 + c.charCodeAt(0)) >>> 0, 7);
 const fmt = d => new Date(d).toLocaleDateString('en',{month:'short',day:'numeric',year:'numeric'});
 const still = matchMedia('(prefers-reduced-motion:reduce)').matches;
@@ -614,7 +640,7 @@ function meta(title, description){
 }
 function paint(page, slug, post){ render(page, slug, post); scrollTo(0, 0); }
 function render(page, slug, post){
-  const read = page === 'post' || page === 'about';
+  const read = page === 'post' || page === 'about' || page === 'unsubscribed' || page === 'confirmed';
   document.body.dataset.view = read ? 'read' : 'home';
   document.body.style.setProperty('--wash', post ? tintOf(post) : '#C9D3F7');
   water.setMode(read ? 'read' : 'home');
@@ -623,6 +649,8 @@ function render(page, slug, post){
   if (page === 'notfound') viewNotFound();
   else if (page === 'post' && post) viewPost(post);
   else if (page === 'about') viewAbout();
+  else if (page === 'unsubscribed') viewUnsubscribed();
+  else if (page === 'confirmed') viewConfirmed();
   else viewHome();
   viewColophon();
   measure();
@@ -689,7 +717,8 @@ function viewPost(p){
     <div id="prose">${p.body.map(b => b.quote ? `<blockquote>${b.quote}</blockquote>` :
       `<div class="blk"><p>${b.p}</p>${b.note ? `<aside><span class="label">Note</span>${b.note}</aside>` : '<span></span>'}</div>`).join('')}</div>
     <div class="pass"><h2>Pass it on</h2><button id="link">Copy link</button>
-      <form id="sub"><input type="email" placeholder="Email me the next one" aria-label="Email address" required><button>Subscribe</button></form>
+      <form id="sub"><input type="email" name="email" placeholder="Email me the next one" aria-label="Email address" required><button>Subscribe</button></form>
+      <p class="meta sub-note" id="subnote">Your address is saved on this site, and a link is mailed to it: the list at Mailjet, which sends the emails, only gets it once you confirm. Nothing else is stored — no IP, no tracking — and any note can be unsubscribed from.</p>
       <p class="meta" id="msg" hidden></p></div>
     ${(() => { /* Only emit links that exist, so a single one sits in the first column. */
       const links = [newer && `<a href="/post/${newer.slug}"><span class="label">Newer</span><span class="pn-t">${newer.title}</span></a>`,
@@ -736,6 +765,62 @@ function viewColophon(){
     <p class="col-meta label">© ${new Date().getFullYear()} · ${SETTINGS.footer}</p></div>`;
 }
 
+/* ============ LEAVING THE LIST ============
+   The page the signup form promises. GET asks, POST removes; the pair is why a scanner that
+   follows the link in a note cannot unsubscribe anyone. */
+function viewUnsubscribed(){
+  const u = UNSUB || { state: 'invalid' };
+  const body = u.state === 'removed'
+    ? `<p class="lede">Done. That address is off the list, here and at Mailjet.</p>
+       <p>Nothing else about you was ever kept, so there is nothing else to delete. If you change
+       your mind, the form under any piece will put you back on.</p>
+       <p><a class="backlink" href="/">← All writing</a></p>`
+  : u.state === 'confirm'
+    ? `<p class="lede">Take this address off the newsletter?</p>
+       <p>Only the address is removed. You can sign up again at any time.</p>
+       <form class="link-form" method="post" action="/unsubscribe">
+         <input type="hidden" name="e" value="${esc(u.email)}">
+         <input type="hidden" name="t" value="${esc(u.token)}">
+         <button>Yes, unsubscribe me</button></form>
+       <p><a class="backlink" href="/">No, keep me on it</a></p>`
+    : `<p class="lede">That link did not work.</p>
+       <p>A link only removes the address it was made for, and it has to arrive whole — some mail
+       apps cut long ones in half. If you are still getting notes, reply to one and I will take you
+       off by hand.</p>
+       <p><a class="backlink" href="/">← All writing</a></p>`;
+  app.innerHTML = `<article><h1>${u.state === 'removed' ? 'Unsubscribed'
+    : u.state === 'confirm' ? 'Unsubscribe' : 'That link did not work'}</h1>${body}</article>`;
+  meta(`Unsubscribe — ${SETTINGS.name}`, 'Leave the newsletter.');
+}
+
+/* ============ JOINING THE LIST ============
+   The other half of the unsubscribe page: the link a signup is mailed, which asks before it acts,
+   so an address only ends up on the list after someone opened the message and pressed the button. */
+function viewConfirmed(){
+  const c = CONFIRM || { state: 'invalid' };
+  const body = c.state === 'done'
+    ? `<p class="lede">You are on the list. Thank you.</p>
+       <p>Every note comes with a link that takes you straight back off it, so nothing here is a
+       trap. Nothing about you was stored except the address.</p>
+       <p><a class="backlink" href="/">← All writing</a></p>`
+  : c.state === 'ask'
+    ? `<p class="lede">Confirm that this address wants the newsletter.</p>
+       <p>Pressing the button adds <b>${esc(c.email)}</b> to the list. If that was not you, close
+       this page: nothing happens, and no mail is sent to it.</p>
+       <form class="link-form" method="post" action="/confirm">
+         <input type="hidden" name="e" value="${esc(c.email)}">
+         <input type="hidden" name="t" value="${esc(c.token)}">
+         <button>Yes, subscribe me</button></form>
+       <p><a class="backlink" href="/">No, do not subscribe me</a></p>`
+    : `<p class="lede">That link did not work.</p>
+       <p>A confirmation link only fits the address it was made for, and it has to arrive whole —
+       some mail apps cut long ones in half. Signing up again sends a fresh one.</p>
+       <p><a class="backlink" href="/">← All writing</a></p>`;
+  app.innerHTML = `<article><h1>${c.state === 'done' ? 'Subscribed'
+    : c.state === 'ask' ? 'One more step' : 'That link did not work'}</h1>${body}</article>`;
+  meta(`Confirm your subscription — ${SETTINGS.name}`, 'Confirm your subscription to the newsletter.');
+}
+
 /* ============ HIGHLIGHTER: readers mark up text ============ */
 function highlighter(p){
   const tools = $('#tools'); let text = '';
@@ -756,10 +841,16 @@ function highlighter(p){
 
 /* ============ FUNCTIONS FOR THE PROGRAMMER AI ============ */
 function subscribe(e){ e.preventDefault();
-  // TODO: send to a newsletter service (Buttondown / Mailchimp / own backend); validate; handle errors; spam protection
-  const m = $('#msg'); m.hidden = false;
-  /* This is a template, so it says so: an unverified "you are subscribed" would be a claim the page cannot keep. */
-  m.textContent = 'Not connected yet — this form still needs a newsletter service. (See the TODO in subscribe().)'; }
+  const form = e.target, m = $('#msg'), btn = form.querySelector('button');
+  const say = text => { m.hidden = false; m.textContent = text; };
+  btn.disabled = true;
+  /* Only the server says whether the signup was accepted; the page shows that answer, nothing more. */
+  fetch('/subscribe', { method: 'POST', headers: { accept: 'application/json' },
+      body: new URLSearchParams(new FormData(form)) })
+    .then(r => r.json().catch(() => ({ ok: false })))
+    .then(d => { say(d.message || 'Something went wrong. Please try again.'); if (d.ok) form.reset(); })
+    .catch(() => say('Something went wrong. Please try again.'))
+    .finally(() => { btn.disabled = false; }); }
 function searchPosts(q){ /* TODO: the server can filter by title/excerpt/body and re-render the pond */ }
 /* loadPosts() and generateRSS() used to be TODOs here. The posts now arrive from MariaDB with the
    page, and /rss.xml is built by the server (see server/src/server.js). */

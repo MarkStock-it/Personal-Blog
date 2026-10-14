@@ -216,6 +216,85 @@ export async function deletePost(id) {
   await pool.query('DELETE FROM posts WHERE id = ?', [id]);
 }
 
+/** The address in lower case, trimmed, or '' when it is not a plausible email address. Deliberately
+ *  loose: the only real test is whether mail arrives, so this just rejects obvious junk. */
+export function normaliseEmail(value) {
+  const email = String(value ?? '').trim().toLowerCase();
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '';
+  return email;
+}
+
+/* Columns the subscribers table gained after the first release, in the same shape as the post
+   columns above, so the migration runner can add them to a table that already exists and the spec
+   can be tested without a database. */
+export const SUBSCRIBER_COLUMN_ADDITIONS = [
+  { name: 'confirmed_at', ddl: 'ADD COLUMN confirmed_at TIMESTAMP NULL DEFAULT NULL AFTER created_at' },
+];
+
+/** The additions a subscribers table with these column names is still missing. */
+export function missingSubscriberColumns(existing) {
+  const have = new Set(existing || []);
+  return SUBSCRIBER_COLUMN_ADDITIONS.filter(column => !have.has(column.name));
+}
+
+/** Add any missing subscriber columns. Safe to run on every start: it only ever adds. */
+export async function ensureSubscriberColumns() {
+  const [rows] = await pool.query(
+    `SELECT COLUMN_NAME AS name FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'subscribers'`,
+  );
+  const missing = missingSubscriberColumns(rows.map(row => row.name));
+  for (const column of missing) {
+    await pool.query(`ALTER TABLE subscribers ${column.ddl}`);
+  }
+  return missing.map(column => column.name);
+}
+
+/** Record a subscriber, unconfirmed. A repeat is not an error, and never un-confirms or
+ *  re-subscribes anyone: the form cannot be used to find out who is already on the list, and
+ *  signing up again with someone else's confirmed address leaves that subscription untouched. */
+export async function addPendingSubscriber(email) {
+  await pool.query(
+    'INSERT INTO subscribers (email) VALUES (?) ON DUPLICATE KEY UPDATE email = email',
+    [email],
+  );
+}
+
+/** Mark an address confirmed. Returns true only for the run that actually changed the row, so the
+ *  caller can tell "just confirmed" from "was already confirmed" — and only a fresh confirmation
+ *  pushes the address to Mailjet, so following an old link cannot re-subscribe someone who has
+ *  since left. */
+export async function confirmSubscriber(email) {
+  const [res] = await pool.query(
+    'UPDATE subscribers SET confirmed_at = NOW() WHERE email = ? AND confirmed_at IS NULL',
+    [email],
+  );
+  return res.affectedRows === 1;
+}
+
+/** Whether this address is on the list and has confirmed. */
+export async function isConfirmedSubscriber(email) {
+  const [rows] = await pool.query(
+    'SELECT confirmed_at FROM subscribers WHERE email = ?', [email],
+  );
+  return Boolean(rows.length && rows[0].confirmed_at);
+}
+
+/** The list that mail may actually be sent to: confirmed addresses only, oldest first. */
+export async function listConfirmedSubscribers() {
+  const [rows] = await pool.query(
+    'SELECT email FROM subscribers WHERE confirmed_at IS NOT NULL ORDER BY created_at, email',
+  );
+  return rows.map(row => row.email);
+}
+
+/** Take a subscriber off the list. Returns the rows removed, so a second unsubscribe is not an
+ *  error and the page can say the same thing either way. */
+export async function removeSubscriber(email) {
+  const [res] = await pool.query('DELETE FROM subscribers WHERE email = ?', [email]);
+  return res.affectedRows;
+}
+
 export const BULK_ACTIONS = ['publish', 'unpublish', 'delete'];
 export const BULK_MAX = 500;
 

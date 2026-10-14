@@ -28,3 +28,16 @@ CREATE TABLE IF NOT EXISTS settings (
   v  MEDIUMTEXT   NOT NULL,
   PRIMARY KEY (k)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Newsletter signups. The address is stored here and, once it has been confirmed and the sync is
+-- configured (MAILJET_API_KEY, MAILJET_SECRET_KEY, MAILJET_LIST_ID), also added to that Mailjet
+-- contact list so the emails can be sent. No IP, no user agent, no tracking.
+--
+-- confirmed_at is NULL until the address follows the link in the confirmation email. Only confirmed
+-- addresses are ever pushed to Mailjet or sent anything, which is what makes the list consented.
+CREATE TABLE IF NOT EXISTS subscribers (
+  email        VARCHAR(254) NOT NULL,
+  created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  confirmed_at TIMESTAMP    NULL DEFAULT NULL,
+  PRIMARY KEY (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

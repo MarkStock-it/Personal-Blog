@@ -289,7 +289,12 @@ const NAV = [
   { id: 'settings', href: '/admin/settings', label: 'Site details' },
 ];
 
-const layout = ({ title, settings, body, signedIn, nav = '', script = '' }) => `<!DOCTYPE html>
+/* `nonce` is this response's CSP nonce (res.locals.cspNonce). The admin pages carry their behaviour in
+   an inline script, and script-src names a nonce instead of 'unsafe-inline', so a page rendered
+   without one is a page whose buttons do nothing. It is applied here, in the one place every admin
+   page's script passes through, rather than inside each template, so a new script cannot be
+   forgotten — an omission would be silent in exactly the way that is hard to notice. */
+const layout = ({ title, settings, body, signedIn, nav = '', script = '', nonce = '' }) => `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -318,14 +323,14 @@ const layout = ({ title, settings, body, signedIn, nav = '', script = '' }) => `
     : '<nav class="side" aria-label="Admin"><span class="label side-head">Sign in</span></nav>'}
   <main>${body}</main>
 </div>
-${script}
+${script.replace(/^<script>/, `<script nonce="${esc(nonce)}">`)}
 </body></html>`;
 
 /* ---------- sign in ---------- */
 
-export const loginPage = ({ settings, error = '', next = '/admin', username = '' }) =>
+export const loginPage = ({ settings, error = '', next = '/admin', username = '', nonce = '' }) =>
   layout({
-    title: 'Sign in', settings, signedIn: false,
+    title: 'Sign in', settings, signedIn: false, nonce,
     body: `<div class="head"><div>
       <h1>Sign in</h1>
       <p class="sub">Your writing room. Everything you publish here is live immediately.</p>
@@ -349,7 +354,7 @@ export const loginPage = ({ settings, error = '', next = '/admin', username = ''
 
 const STAT = (value, label) => `<div class="stat"><b>${esc(value)}</b><span>${esc(label)}</span></div>`;
 
-export const dashboard = ({ settings, posts, message = '', error = '', seeded = 0 }) => {
+export const dashboard = ({ settings, posts, message = '', error = '', seeded = 0, nonce = '' }) => {
   const live = posts.filter(p => p.published).length;
   const drafts = posts.length - live;
   const topics = [...new Set(posts.map(p => p.topic).filter(Boolean))].sort();
@@ -503,7 +508,7 @@ export const dashboard = ({ settings, posts, message = '', error = '', seeded = 
 })();
 </script>` : '';
 
-  return layout({ title: 'All posts', settings, signedIn: true, nav: 'posts', body, script });
+  return layout({ title: 'All posts', settings, signedIn: true, nav: 'posts', body, script, nonce });
 };
 
 /* ---------- the editor ---------- */
@@ -517,7 +522,7 @@ const DEPTH_HINT = value => {
   return 'the floor of the pond: smallest and quietest';
 };
 
-export const postForm = ({ settings, post, topics = [], error = '', isNew, message = '' }) => {
+export const postForm = ({ settings, post, topics = [], error = '', isNew, message = '', nonce = '' }) => {
   const tags = tagList(post.tags);
 
   const body = `<div class="head">
@@ -846,15 +851,15 @@ export const postForm = ({ settings, post, topics = [], error = '', isNew, messa
 
   return layout({
     title: isNew ? 'New post' : post.title, settings, signedIn: true, nav: isNew ? 'new' : 'posts',
-    body, script,
+    body, script, nonce,
   });
 };
 
 /* ---------- site details ---------- */
 
-export const settingsPage = ({ settings, message = '', error = '' }) =>
+export const settingsPage = ({ settings, message = '', error = '', nonce = '' }) =>
   layout({
-    title: 'Site details', settings, signedIn: true, nav: 'settings',
+    title: 'Site details', settings, signedIn: true, nav: 'settings', nonce,
     body: `<div class="head">
       <div>
         <h1>Site details</h1>

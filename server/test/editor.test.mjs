@@ -15,7 +15,10 @@ import assert from 'node:assert/strict';
 
 import { loginPage, dashboard, postForm, settingsPage, previewBlocks } from '../src/admin.js';
 import { parseBody } from '../src/markdown.js';
-import { joinTags, splitTags, missingPostColumns, POST_COLUMN_ADDITIONS, pool } from '../src/db.js';
+import {
+  joinTags, splitTags, missingPostColumns, POST_COLUMN_ADDITIONS,
+  missingSubscriberColumns, SUBSCRIBER_COLUMN_ADDITIONS, pool,
+} from '../src/db.js';
 import { readFile } from 'node:fs/promises';
 
 const settings = {
@@ -207,9 +210,16 @@ test('the migration adds exactly the columns a table is missing', () => {
   assert.deepEqual(missingPostColumns(undefined).length, POST_COLUMN_ADDITIONS.length);
 });
 
+test('the migration adds the subscriber columns a table is missing too', () => {
+  assert.deepEqual(missingSubscriberColumns([]).map(c => c.name), ['confirmed_at']);
+  assert.deepEqual(missingSubscriberColumns(['email', 'created_at']).map(c => c.name), ['confirmed_at']);
+  assert.deepEqual(missingSubscriberColumns(['email', 'created_at', 'confirmed_at']), []);
+  assert.deepEqual(missingSubscriberColumns(undefined).length, SUBSCRIBER_COLUMN_ADDITIONS.length);
+});
+
 test('schema.sql and the migration agree, so a fresh install matches an upgraded one', async () => {
   const schema = await readFile(new URL('../schema.sql', import.meta.url), 'utf8');
-  for (const column of POST_COLUMN_ADDITIONS) {
+  for (const column of [...POST_COLUMN_ADDITIONS, ...SUBSCRIBER_COLUMN_ADDITIONS]) {
     assert.ok(schema.includes(`${column.name} `) || schema.includes(`${column.name}\n`),
       `schema.sql is missing ${column.name}, so a new database would differ from an upgraded one`);
   }
