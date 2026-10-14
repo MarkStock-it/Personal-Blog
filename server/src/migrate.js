@@ -3,7 +3,8 @@
  * Applies schema.sql and fills in the starting content. Safe to run more than once:
  *   - tables are created IF NOT EXISTS;
  *   - settings are inserted only when the key is missing, so edited copy is never overwritten;
- *   - seed posts are written only into an empty posts table.
+ *   - seed posts are written as DRAFTS, and only into an empty posts table: template text must never
+ *     reach a visitor, and the writing room is where the owner will look for their own words.
  *
  * Usage:  npm run migrate
  */
@@ -53,10 +54,10 @@ async function main() {
   if (existing === 0) {
     for (const post of SEED_POSTS) {
       if (await getPostRawBySlug(post.slug)) continue;
-      await savePost({ ...post, published: 1 });
+      await savePost(post);            // unpublished: see the note in seed.js
       postsAdded += 1;
     }
-    console.log(`posts: seeded ${postsAdded} placeholder post(s) from src/seed.js`);
+    console.log(`posts: seeded ${postsAdded} draft(s) from src/seed.js (not published)`);
   } else {
     console.log(`posts: ${existing} already present, nothing seeded`);
   }

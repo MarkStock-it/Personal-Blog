@@ -44,7 +44,7 @@ h1{font-size:clamp(1.5rem,1rem + 1.6vw,2rem);line-height:1.15;letter-spacing:-.0
 h2{font-size:1.05rem;letter-spacing:.01em;margin:0}
 h3{font-size:.9rem;letter-spacing:.02em;margin:0}
 p{margin:0 0 .9rem}
-.label{font-size:.7rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
+.label{font-size:.75rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
 .mut{color:var(--mut)}
 .small{font-size:.86rem}
 
@@ -55,7 +55,7 @@ p{margin:0 0 .9rem}
 .bar a{color:var(--paper);text-decoration:none}
 .bar a:hover{text-decoration:underline}
 .brand{display:flex;align-items:baseline;gap:.6rem;font-weight:600;letter-spacing:-.01em}
-.brand .tag{font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:#B9B3D8}
+.brand .tag{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:#B9B3D8}
 .bar-actions{display:flex;align-items:center;gap:1rem;font-size:.9rem}
 .bar form{margin:0}
 .linkish{background:none;border:0;color:var(--paper);font:inherit;cursor:pointer;padding:0}
@@ -87,14 +87,14 @@ p{margin:0 0 .9rem}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr));gap:.7rem;margin-bottom:1.2rem}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:.85rem 1rem}
 .stat b{display:block;font-family:var(--display);font-size:1.5rem;line-height:1.1;letter-spacing:-.02em}
-.stat span{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+.stat span{font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
 
 /* ---- fields ---- */
 label.field{display:block;margin:0 0 1rem}
 label.field>span{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;
-  font-size:.72rem;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:var(--mut);
+  font-size:.75rem;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:var(--mut);
   margin-bottom:.35rem}
-label.field .count{font-weight:500;letter-spacing:.04em;text-transform:none;font-size:.72rem;color:var(--mut)}
+label.field .count{font-weight:500;letter-spacing:.04em;text-transform:none;font-size:.75rem;color:var(--mut)}
 label.field .count[data-warn=1]{color:var(--warn)}
 .hint{margin:.35rem 0 0;font-size:.82rem;color:var(--mut)}
 input,select,textarea{width:100%;padding:.6rem .7rem;border:1px solid var(--line);border-radius:var(--r-sm);
@@ -118,18 +118,19 @@ button.danger:hover{background:#FBEDF1}
 button[disabled]{opacity:.5;cursor:not-allowed}
 .btn-row{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:1.2rem}
 
-.check{display:inline-flex;align-items:center;gap:.5rem;font-size:.92rem;cursor:pointer}
+.check{display:inline-flex;align-items:center;gap:.5rem;font-size:.92rem;cursor:pointer;padding:.25rem 0}
 .check input{width:auto;accent-color:var(--accent)}
 
 /* ---- pills, chips, flashes ---- */
-.pill{display:inline-block;font-size:.66rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+.pill{display:inline-block;font-size:.75rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
   padding:.15rem .5rem;border-radius:999px;border:1px solid var(--line);color:var(--mut);background:var(--card)}
 .pill.live{color:var(--good);border-color:#C6DCCE;background:#F2F8F4}
 .pill.draft{color:var(--warn);border-color:#E6D6B8;background:#FBF6EC}
 .chips{display:flex;flex-wrap:wrap;gap:.35rem;margin:.5rem 0 0}
 .chip{display:inline-flex;align-items:center;gap:.35rem;font-family:var(--display);font-size:.78rem;
   padding:.2rem .5rem .2rem .6rem;border-radius:999px;background:var(--wash);border:1px solid var(--line)}
-.chip button{border:0;background:none;padding:0 .1rem;color:var(--mut);cursor:pointer;font-size:.9rem;line-height:1}
+.chip button{border:0;background:none;padding:.2rem .3rem;color:var(--mut);cursor:pointer;font-size:.9rem;line-height:1;
+  border-radius:var(--r-sm)}
 .flash{display:flex;gap:.6rem;align-items:flex-start;border:1px solid var(--line);border-left:3px solid var(--accent);
   background:var(--card);border-radius:var(--r-sm);padding:.7rem .9rem;margin-bottom:1rem;font-size:.92rem}
 .flash.ok{border-left-color:var(--good)}
@@ -146,7 +147,12 @@ button[disabled]{opacity:.5;cursor:not-allowed}
 .item{display:flex;flex-wrap:wrap;gap:.7rem 1rem;align-items:flex-start;justify-content:space-between;
   background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:.9rem 1rem}
 .item>div:first-of-type{flex:1 1 19rem;min-width:0}
-.pick{width:1.1rem;height:1.1rem;margin:.3rem 0 0;flex:0 0 auto;accent-color:var(--accent);cursor:pointer}
+/* A bare checkbox is an 18px target, which is small on a phone. The wrapper gives it a 2rem hit
+   area without changing the box the eye sees; the offsets keep the box exactly where it was. */
+.pickbox{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:2rem;height:2rem;
+  margin:-.15rem 0 0 -.45rem;border-radius:var(--r-sm);cursor:pointer}
+.pickbox:hover{background:var(--wash)}
+.pick{width:1.1rem;height:1.1rem;margin:0;accent-color:var(--accent);cursor:pointer}
 .bulk{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:0 0 .7rem;padding:.6rem .8rem;
   background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm)}
 .bulk .check{margin-right:.3rem}
@@ -354,7 +360,7 @@ export const loginPage = ({ settings, error = '', next = '/admin', username = ''
 
 const STAT = (value, label) => `<div class="stat"><b>${esc(value)}</b><span>${esc(label)}</span></div>`;
 
-export const dashboard = ({ settings, posts, message = '', error = '', seeded = 0, nonce = '' }) => {
+export const dashboard = ({ settings, posts, message = '', error = '', nonce = '' }) => {
   const live = posts.filter(p => p.published).length;
   const drafts = posts.length - live;
   const topics = [...new Set(posts.map(p => p.topic).filter(Boolean))].sort();
@@ -363,7 +369,7 @@ export const dashboard = ({ settings, posts, message = '', error = '', seeded = 
 
   const row = p => `<li class="item" data-title="${esc(`${p.title} ${p.slug} ${p.topic} ${(p.tags || []).join(' ')} ${p.excerpt}`.toLowerCase())}"
       data-state="${p.published ? 'live' : 'draft'}" data-topic="${esc(p.topic)}">
-    <input class="pick" type="checkbox" form="bulk" name="ids" value="${Number(p.id)}" aria-label="Select ${esc(p.title)}">
+    <label class="pickbox"><input class="pick" type="checkbox" form="bulk" name="ids" value="${Number(p.id)}" aria-label="Select ${esc(p.title)}"></label>
     <div>
       <h2><a href="/admin/edit/${Number(p.id)}">${esc(p.title)}</a></h2>
       <p class="meta">
@@ -400,7 +406,6 @@ export const dashboard = ({ settings, posts, message = '', error = '', seeded = 
   </div>
   ${message ? `<p class="flash ok">${esc(message)}</p>` : ''}
   ${error ? `<p class="flash bad">${esc(error)}</p>` : ''}
-  ${seeded ? `<p class="flash">Seeded ${Number(seeded)} starting post${seeded === 1 ? '' : 's'} from the template.</p>` : ''}
 
   <div class="stats">
     ${STAT(live, 'published')}${STAT(drafts, 'drafts')}
